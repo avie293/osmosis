@@ -35,6 +35,11 @@ final class TunnelBridge {
     private static final int CONNECT_TIMEOUT_MILLIS = 5000;
     /** How long the guest's local port waits for Minecraft to connect. */
     private static final int ACCEPT_TIMEOUT_SECONDS = 30;
+    /**
+     * Always IPv4: {@link InetAddress#getLoopbackAddress()} returns ::1 when the JVM prefers IPv6, as on NeoForge,
+     * while the game connects to the "127.0.0.1" it is given.
+     */
+    private static final InetAddress LOCALHOST = InetAddress.ofLiteral("127.0.0.1");
 
     private TunnelBridge() {
     }
@@ -45,7 +50,7 @@ final class TunnelBridge {
     static void host(EventLoopGroup group, InetAddress relay, int tunnelPort, byte[] ticket, int lanPort) {
         connect(group, new InetSocketAddress(relay, tunnelPort), tunnel -> {
             tunnel.writeAndFlush(header(ROLE_HOST, ticket));
-            connect(group, new InetSocketAddress(InetAddress.getLoopbackAddress(), lanPort),
+            connect(group, new InetSocketAddress(LOCALHOST, lanPort),
                     server -> link(tunnel, server), tunnel::close);
         }, () -> Osmosis.LOGGER.warn("Could not reach the Osmosis tunnel for a joining guest"));
     }
@@ -73,7 +78,7 @@ final class TunnelBridge {
                         }, game::close);
                     }
                 })
-                .bind(InetAddress.getLoopbackAddress(), 0)
+                .bind(LOCALHOST, 0)
                 .addListener((ChannelFuture future) -> {
                     if (!future.isSuccess()) {
                         port.completeExceptionally(future.cause());
