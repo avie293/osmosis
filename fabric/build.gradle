@@ -21,6 +21,8 @@ loom {
             setConfigName('Fabric Client')
             ideConfigGenerated(true)
             runDir('runs/client')
+            // A fixed name keeps the offline UUID, and with it friends on a local Osmosis server, between runs.
+            programArgs('--username', 'DevFabric')
         }
         server {
             server()

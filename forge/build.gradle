@@ -11,6 +11,8 @@ minecraft {
         }
         register('client') {
             workingDir = layout.projectDirectory.dir('runs/client')
+            // A fixed name keeps the offline UUID, and with it friends on a local Osmosis server, between runs.
+            args '--username', 'DevForge'
         }
         register('server') {
             workingDir = layout.projectDirectory.dir('runs/server')
