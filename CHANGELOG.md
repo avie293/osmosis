@@ -13,6 +13,9 @@
 - Added a dropdown with actions for friends and groups, also opened by right-clicking them
 - Added hosting your singleplayer world for friends from the pause menu, inviting friends or whole groups and joining
   worlds you were invited to (Fabric only for now)
+- Added invite cards in the chat with a join button, and a key (`J`) to join the world from an invite notification
+- Added rejoining a friend's world you were invited to before whenever they host it again
+- Added a Friends' worlds section to the multiplayer server list
 
 ### Changed
 - Changed the friends screen to a sidebar with friends, groups and requests next to the open chat
