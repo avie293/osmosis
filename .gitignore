@@ -5,6 +5,9 @@ out/
 classes/
 !gradle/wrapper/gradle-wrapper.jar
 
+# Rust
+server/target/
+
 # Minecraft run directories
 run/
 runs/
