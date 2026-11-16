@@ -1,5 +1,7 @@
 package cc.avie.osmosis.platform;
 
+import java.nio.file.Path;
+
 /**
  * Loader specific functionality that common code can use. Each loader provides its own implementation.
  */
@@ -14,4 +16,9 @@ public interface PlatformHelper {
      * @return {@code true} if a mod with the given id is loaded
      */
     boolean isModLoaded(String modId);
+
+    /**
+     * @return the directory the loader uses for config files
+     */
+    Path getConfigDir();
 }
