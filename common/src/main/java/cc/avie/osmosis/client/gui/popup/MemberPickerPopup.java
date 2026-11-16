@@ -1,6 +1,7 @@
 package cc.avie.osmosis.client.gui.popup;
 
 import cc.avie.osmosis.client.friend.FriendProfile;
+import cc.avie.osmosis.client.gui.PanelButton;
 import cc.avie.osmosis.client.gui.PanelList;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -10,7 +11,6 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.PlayerFaceExtractor;
@@ -40,7 +40,7 @@ public final class MemberPickerPopup extends OsmosisPopup {
     private final boolean askForName;
     private final BiConsumer<String, Set<UUID>> onDone;
     private final Set<UUID> selected = new LinkedHashSet<>();
-    private @Nullable Button doneButton;
+    private @Nullable PanelButton doneButton;
     private String name = "";
 
     /**
@@ -100,13 +100,13 @@ public final class MemberPickerPopup extends OsmosisPopup {
 
         int buttonY = y + LIST_HEIGHT + 6;
         int buttonWidth = (WIDTH - 2 * PADDING - 4) / 2;
-        this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose())
-                .bounds(this.left + PADDING, buttonY, buttonWidth, 20)
-                .build());
-        this.doneButton = this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> {
-            this.onClose();
-            this.onDone.accept(this.name.strip(), Set.copyOf(this.selected));
-        }).bounds(this.left + PADDING + buttonWidth + 4, buttonY, buttonWidth, 20).build());
+        this.addRenderableWidget(PanelButton.text(this.left + PADDING, buttonY, buttonWidth, 20,
+                CommonComponents.GUI_CANCEL, this::onClose));
+        this.doneButton = this.addRenderableWidget(PanelButton.text(this.left + PADDING + buttonWidth + 4, buttonY,
+                buttonWidth, 20, CommonComponents.GUI_DONE, () -> {
+                    this.onClose();
+                    this.onDone.accept(this.name.strip(), Set.copyOf(this.selected));
+                }));
         this.updateDoneButton();
     }
 

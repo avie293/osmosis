@@ -13,10 +13,8 @@ import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.PlayerFaceExtractor;
-import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -32,6 +30,7 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
     private static final int ROW_HEIGHT = 28;
     private static final int SECTION_HEIGHT = 20;
     private static final int FACE_SIZE = 16;
+    private static final int ICON_BUTTON_SIZE = 15;
     private static final int TEXT_COLOR = 0xFFFFFFFF;
     private static final int MUTED_COLOR = 0xFFA0A0A0;
     private static final int SECTION_COLOR = 0xFFFFFF55;
@@ -113,7 +112,7 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
         }
     }
 
-    private void addSection(String key, @Nullable Button button) {
+    private void addSection(String key, @Nullable PanelButton button) {
         this.addEntry(new SectionRow(Component.translatable(key), button), SECTION_HEIGHT);
     }
 
@@ -121,13 +120,9 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
         this.addEntry(new HintRow(Component.translatable(key)), SECTION_HEIGHT);
     }
 
-    private Button iconButton(String sprite, String labelKey, Runnable action) {
-        Component label = Component.translatable(labelKey);
-        Button button = SpriteIconButton.builder(label, b -> action.run(), true)
-                .size(14, 14)
-                .sprite(Sprites.sprite("friends/" + sprite), 9, 9)
-                .withTootip()
-                .build();
+    private PanelButton iconButton(String sprite, String labelKey, Runnable action) {
+        PanelButton button = PanelButton.icon(0, 0, ICON_BUTTON_SIZE, Sprites.sprite("friends/" + sprite),
+                Component.translatable(labelKey), action);
         button.active = this.screen.isConnected();
         return button;
     }
@@ -146,9 +141,9 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
 
     private final class SectionRow extends Entry {
         private final Component title;
-        private final @Nullable Button button;
+        private final @Nullable PanelButton button;
 
-        private SectionRow(Component title, @Nullable Button button) {
+        private SectionRow(Component title, @Nullable PanelButton button) {
             this.title = title;
             this.button = button;
         }
@@ -259,9 +254,9 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
     private final class PlayerRow extends Entry {
         private final FriendProfile profile;
         private final ResolvableProfile face;
-        private final List<Button> buttons;
+        private final List<PanelButton> buttons;
 
-        private PlayerRow(FriendProfile profile, List<Button> buttons) {
+        private PlayerRow(FriendProfile profile, List<PanelButton> buttons) {
             this.profile = profile;
             this.face = ResolvableProfile.createUnresolved(profile.id());
             this.buttons = buttons;
@@ -275,12 +270,12 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
                     y + (this.getContentHeight() - FACE_SIZE) / 2, FACE_SIZE);
             Font font = SidebarList.this.minecraft.font;
             int textX = x + 4 + FACE_SIZE + 5;
-            int textWidth = this.getContentRight() - 4 - this.buttons.size() * 16 - textX;
+            int textWidth = this.getContentRight() - 4 - this.buttons.size() * (ICON_BUTTON_SIZE + 2) - textX;
             graphics.text(font, font.plainSubstrByWidth(this.profile.name(), textWidth), textX,
                     y + (this.getContentHeight() - 8) / 2, TEXT_COLOR);
             int buttonX = this.getContentRight() - 2;
             for (int i = this.buttons.size() - 1; i >= 0; i--) {
-                Button button = this.buttons.get(i);
+                PanelButton button = this.buttons.get(i);
                 buttonX -= button.getWidth();
                 button.setPosition(buttonX, y + (this.getContentHeight() - button.getHeight()) / 2);
                 button.extractRenderState(graphics, mouseX, mouseY, a);

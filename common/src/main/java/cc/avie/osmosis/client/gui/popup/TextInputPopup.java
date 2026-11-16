@@ -1,7 +1,7 @@
 package cc.avie.osmosis.client.gui.popup;
 
+import cc.avie.osmosis.client.gui.PanelButton;
 import java.util.function.Consumer;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -36,12 +36,10 @@ public final class TextInputPopup extends OsmosisPopup {
         this.input.setValue(this.initialValue);
         this.addRenderableWidget(this.input);
         int buttonWidth = (WIDTH - 2 * PADDING - 4) / 2;
-        this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose())
-                .bounds(this.left + PADDING, y + 26, buttonWidth, 20)
-                .build());
-        this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.submit())
-                .bounds(this.left + PADDING + buttonWidth + 4, y + 26, buttonWidth, 20)
-                .build());
+        this.addRenderableWidget(PanelButton.text(this.left + PADDING, y + 26, buttonWidth, 20,
+                CommonComponents.GUI_CANCEL, this::onClose));
+        this.addRenderableWidget(PanelButton.text(this.left + PADDING + buttonWidth + 4, y + 26, buttonWidth, 20,
+                CommonComponents.GUI_DONE, this::submit));
         this.setInitialFocus(this.input);
     }
 

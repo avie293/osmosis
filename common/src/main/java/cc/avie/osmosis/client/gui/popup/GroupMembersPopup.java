@@ -3,16 +3,15 @@ package cc.avie.osmosis.client.gui.popup;
 import cc.avie.osmosis.client.OsmosisClient;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.friend.GroupInfo;
+import cc.avie.osmosis.client.gui.PanelButton;
 import cc.avie.osmosis.client.gui.PanelList;
 import cc.avie.osmosis.client.gui.Sprites;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.PlayerFaceExtractor;
-import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
@@ -66,9 +65,8 @@ public final class GroupMembersPopup extends OsmosisPopup {
             list.addRow(new MemberRow(group, member, canRemove && !member.id().equals(self.id())));
         }
         this.addRenderableWidget(list);
-        this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose())
-                .bounds(this.left + PADDING, y + LIST_HEIGHT + 6, WIDTH - 2 * PADDING, 20)
-                .build());
+        this.addRenderableWidget(PanelButton.text(this.left + PADDING, y + LIST_HEIGHT + 6, WIDTH - 2 * PADDING, 20,
+                CommonComponents.GUI_DONE, this::onClose));
     }
 
     private static final class MemberList extends PanelList<MemberRow> {
@@ -85,7 +83,7 @@ public final class GroupMembersPopup extends OsmosisPopup {
         private final FriendProfile member;
         private final boolean owner;
         private final ResolvableProfile face;
-        private final List<Button> buttons;
+        private final List<PanelButton> buttons;
 
         private MemberRow(GroupInfo group, FriendProfile member, boolean removable) {
             this.member = member;
@@ -94,14 +92,10 @@ public final class GroupMembersPopup extends OsmosisPopup {
             this.buttons = removable ? List.of(removeButton(group.id(), member.id())) : List.of();
         }
 
-        private static Button removeButton(long group, UUID member) {
-            Component label = Component.translatable("osmosis.group.remove_member");
-            return SpriteIconButton.builder(label,
-                            button -> OsmosisClient.connection().removeGroupMember(group, member), true)
-                    .size(16, 16)
-                    .sprite(Sprites.sprite("menu/remove"), 9, 9)
-                    .withTootip()
-                    .build();
+        private static PanelButton removeButton(long group, UUID member) {
+            return PanelButton.icon(0, 0, 15, Sprites.sprite("menu/remove"),
+                    Component.translatable("osmosis.group.remove_member"),
+                    () -> OsmosisClient.connection().removeGroupMember(group, member));
         }
 
         @Override
@@ -116,7 +110,7 @@ public final class GroupMembersPopup extends OsmosisPopup {
                 graphics.text(GroupMembersPopup.this.font, tag,
                         this.getContentRight() - 4 - GroupMembersPopup.this.font.width(tag), y + 4, OWNER_COLOR);
             }
-            for (Button button : this.buttons) {
+            for (PanelButton button : this.buttons) {
                 int buttonY = this.getContentY() + (this.getContentHeight() - button.getHeight()) / 2;
                 button.setPosition(this.getContentRight() - button.getWidth() - 2, buttonY);
                 button.extractRenderState(graphics, mouseX, mouseY, a);

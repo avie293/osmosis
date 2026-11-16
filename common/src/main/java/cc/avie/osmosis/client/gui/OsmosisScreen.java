@@ -11,10 +11,8 @@ import cc.avie.osmosis.client.gui.popup.MenuPopup;
 import java.util.regex.Pattern;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.PlayerFaceExtractor;
-import net.minecraft.client.gui.components.SpriteIconButton;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.CommonComponents;
@@ -31,6 +29,7 @@ public final class OsmosisScreen extends Screen {
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
     private static final int BAR_HEIGHT = 24;
     private static final int TAB_HEIGHT = 18;
+    private static final int ICON_BUTTON_SIZE = 19;
     private static final int CHAT_HEADER_HEIGHT = 30;
     private static final int INPUT_ROW_HEIGHT = 26;
     private static final int MAX_MESSAGE_LENGTH = 256;
@@ -48,8 +47,8 @@ public final class OsmosisScreen extends Screen {
     private @Nullable TabButton requestsTabButton;
     private @Nullable SidebarList sidebar;
     private @Nullable MessageList messages;
-    private @Nullable Button addButton;
-    private @Nullable Button sendButton;
+    private @Nullable PanelButton addButton;
+    private @Nullable PanelButton sendButton;
     private @Nullable EditBox input;
 
     public OsmosisScreen(@Nullable Screen parent) {
@@ -126,7 +125,8 @@ public final class OsmosisScreen extends Screen {
 
         int listTop = contentTop + TAB_HEIGHT + 4;
         if (this.requestsTab) {
-            EditBox nameBox = new EditBox(this.font, 4, listTop, sidebarWidth - 30, 18,
+            EditBox nameBox = new EditBox(this.font, 4, listTop, sidebarWidth - ICON_BUTTON_SIZE - 10,
+                    ICON_BUTTON_SIZE,
                     Component.translatable("osmosis.friends.name_hint"));
             nameBox.setHint(Component.translatable("osmosis.friends.name_hint"));
             nameBox.setMaxLength(16);
@@ -136,23 +136,18 @@ public final class OsmosisScreen extends Screen {
                 this.updateButtons();
             });
             this.addRenderableWidget(nameBox);
-            this.addButton = this.addRenderableWidget(SpriteIconButton.builder(
-                            Component.translatable("osmosis.friends.add"), button -> this.sendRequest(), true)
-                    .size(20, 18)
-                    .sprite(Sprites.sprite("friends/add"), 9, 9)
-                    .withTootip()
-                    .build());
-            this.addButton.setPosition(sidebarWidth - 24, listTop);
-            listTop += 22;
+            this.addButton = this.addRenderableWidget(PanelButton.icon(sidebarWidth - ICON_BUTTON_SIZE - 4, listTop,
+                    ICON_BUTTON_SIZE, Sprites.sprite("friends/add"), Component.translatable("osmosis.friends.add"),
+                    this::sendRequest));
+            listTop += ICON_BUTTON_SIZE + 3;
         } else {
             this.addButton = null;
         }
         this.sidebar = this.addRenderableWidget(new SidebarList(this.minecraft, 0, listTop, sidebarWidth,
                 contentBottom - listTop, this));
 
-        this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose())
-                .bounds(this.width - 84, this.height - BAR_HEIGHT + 2, 80, 20)
-                .build());
+        this.addRenderableWidget(PanelButton.text(this.width - 84, this.height - BAR_HEIGHT + 2, 80, 20,
+                CommonComponents.GUI_DONE, this::onClose));
 
         this.messages = null;
         this.input = null;
@@ -165,12 +160,11 @@ public final class OsmosisScreen extends Screen {
 
     private void initChat(int sidebarWidth, int contentTop, int contentBottom) {
         int paneWidth = this.width - sidebarWidth;
-        this.addRenderableWidget(SpriteIconButton.builder(Component.translatable("osmosis.menu"),
-                        button -> this.openMenu(this.selected, button.getX(), button.getBottom()), true)
-                .size(20, 20)
-                .sprite(Sprites.sprite("friends/menu"), 9, 9)
-                .withTootip()
-                .build()).setPosition(this.width - 26, contentTop + 5);
+        int menuX = this.width - ICON_BUTTON_SIZE - 6;
+        int menuY = contentTop + (CHAT_HEADER_HEIGHT - ICON_BUTTON_SIZE) / 2;
+        this.addRenderableWidget(PanelButton.icon(menuX, menuY, ICON_BUTTON_SIZE, Sprites.sprite("friends/menu"),
+                Component.translatable("osmosis.menu"),
+                () -> this.openMenu(this.selected, menuX, menuY + ICON_BUTTON_SIZE)));
 
         int listTop = contentTop + CHAT_HEADER_HEIGHT;
         int listBottom = contentBottom - INPUT_ROW_HEIGHT;
@@ -187,8 +181,8 @@ public final class OsmosisScreen extends Screen {
             this.updateButtons();
         });
         this.addRenderableWidget(this.input);
-        this.sendButton = this.addRenderableWidget(Button.builder(Component.translatable("osmosis.chat.send"),
-                button -> this.send()).bounds(this.width - 64, listBottom + 3, 58, 20).build());
+        this.sendButton = this.addRenderableWidget(PanelButton.text(this.width - 64, listBottom + 3, 58, 20,
+                Component.translatable("osmosis.chat.send"), this::send));
         this.setInitialFocus(this.input);
         this.loadOlder();
         this.markRead();

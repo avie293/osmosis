@@ -15,7 +15,6 @@ import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
@@ -109,11 +108,11 @@ final class MessageList extends PanelList<MessageList.Entry> {
     }
 
     private final class LoadOlderEntry extends Entry {
-        private final Button button;
+        private final PanelButton button;
 
         private LoadOlderEntry(boolean loading) {
-            this.button = Button.builder(Component.translatable("osmosis.chat.load_older"),
-                    button -> MessageList.this.loadOlder.run()).width(140).build();
+            this.button = PanelButton.text(0, 0, 140, 20, Component.translatable("osmosis.chat.load_older"),
+                    MessageList.this.loadOlder);
             this.button.active = !loading;
         }
 

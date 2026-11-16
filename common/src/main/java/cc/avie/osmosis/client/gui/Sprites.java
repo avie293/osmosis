@@ -15,6 +15,9 @@ public final class Sprites {
     public static final Identifier POPUP = sprite("panel/popup");
     public static final Identifier SELECTED = sprite("panel/selected");
     public static final Identifier HOVERED = sprite("panel/hovered");
+    public static final Identifier BUTTON = sprite("button/normal");
+    public static final Identifier BUTTON_HOVERED = sprite("button/hovered");
+    public static final Identifier BUTTON_DISABLED = sprite("button/disabled");
     public static final Identifier TAB = sprite("panel/tab");
     public static final Identifier TAB_SELECTED = sprite("panel/tab_selected");
     public static final Identifier BUBBLE_OUTGOING = sprite("bubble/outgoing");
