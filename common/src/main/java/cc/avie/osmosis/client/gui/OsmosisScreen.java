@@ -34,8 +34,8 @@ public final class OsmosisScreen extends Screen {
     /** Space between the tab panel's frame and what is inside it. */
     private static final int PANEL_INSET = 5;
     private static final int ICON_BUTTON_SIZE = 19;
-    /** Leaves 3 pixels above and below in the bar. */
-    private static final int BACK_BUTTON_HEIGHT = 18;
+    /** Just tall enough for the text, leaving 5 pixels above and below in the bar. */
+    private static final int BACK_BUTTON_HEIGHT = 14;
     private static final int CHAT_HEADER_HEIGHT = 30;
     private static final int INPUT_ROW_HEIGHT = 26;
     private static final int MAX_MESSAGE_LENGTH = 256;
@@ -165,7 +165,7 @@ public final class OsmosisScreen extends Screen {
                 sidebarWidth - 2 * listLeft, listBottom - listTop, this));
 
         int backMargin = (BAR_HEIGHT - BACK_BUTTON_HEIGHT) / 2;
-        int backWidth = this.font.width(CommonComponents.GUI_BACK) + 12;
+        int backWidth = this.font.width(CommonComponents.GUI_BACK) + 8;
         this.addRenderableWidget(PanelButton.text(backMargin, backMargin, backWidth, BACK_BUTTON_HEIGHT,
                 CommonComponents.GUI_BACK, this::onClose));
 
