@@ -1,10 +1,14 @@
 package cc.avie.osmosis.client;
 
+import cc.avie.osmosis.client.chat.ChatCrypto;
+import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.gui.FriendsScreen;
 import cc.avie.osmosis.client.net.OsmosisConnection;
 import cc.avie.osmosis.platform.Services;
 import com.mojang.blaze3d.platform.InputConstants;
+import java.nio.file.Path;
+import java.util.UUID;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.jspecify.annotations.Nullable;
@@ -18,6 +22,7 @@ public final class OsmosisClient {
             KeyMapping.Category.MULTIPLAYER);
 
     private static final FriendList FRIENDS = new FriendList();
+    private static final ChatLog CHATS = new ChatLog();
     private static @Nullable OsmosisConnection connection;
     private static boolean started;
 
@@ -27,16 +32,19 @@ public final class OsmosisClient {
     public static void init() {
         OsmosisConfig config = OsmosisConfig.load(Services.PLATFORM.getConfigDir());
         FRIENDS.setOnlineToasts(config.onlineToasts());
-        connection = new OsmosisConnection(config, FRIENDS);
+        connection = new OsmosisConnection(config, FRIENDS, CHATS);
     }
 
     public static void tick() {
+        Minecraft minecraft = Minecraft.getInstance();
         // Waiting for the first tick means the game has finished starting and the session is available.
         if (!started) {
             started = true;
-            connection().start();
+            UUID account = minecraft.getUser().getProfileId();
+            // One key per account, outside the config folder so it is never shipped with a modpack.
+            Path keyFile = minecraft.gameDirectory.toPath().resolve("osmosis/keys/" + account + ".key");
+            connection().start(ChatCrypto.loadOrCreate(keyFile, account));
         }
-        Minecraft minecraft = Minecraft.getInstance();
         while (OPEN_KEY.consumeClick()) {
             if (minecraft.gui.screen() == null) {
                 minecraft.gui.setScreen(new FriendsScreen(null));
@@ -46,6 +54,10 @@ public final class OsmosisClient {
 
     public static FriendList friends() {
         return FRIENDS;
+    }
+
+    public static ChatLog chats() {
+        return CHATS;
     }
 
     public static OsmosisConnection connection() {

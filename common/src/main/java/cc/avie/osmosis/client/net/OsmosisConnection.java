@@ -2,9 +2,14 @@ package cc.avie.osmosis.client.net;
 
 import cc.avie.osmosis.Osmosis;
 import cc.avie.osmosis.client.OsmosisConfig;
+import cc.avie.osmosis.client.chat.ChatCrypto;
+import cc.avie.osmosis.client.chat.ChatLog;
+import cc.avie.osmosis.client.chat.ChatMessage;
 import cc.avie.osmosis.client.friend.ConnectionStatus;
 import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.friend.FriendProfile;
+import cc.avie.osmosis.client.friend.FriendState;
+import cc.avie.osmosis.client.gui.ChatScreen;
 import cc.avie.osmosis.client.gui.OsmosisToast;
 import com.mojang.authlib.exceptions.AuthenticationException;
 import io.netty.bootstrap.Bootstrap;
@@ -28,9 +33,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
@@ -54,20 +57,32 @@ public final class OsmosisConnection {
 
     private final OsmosisConfig config;
     private final FriendList friends;
+    private final ChatLog chats;
     // One daemon thread is plenty for a single socket and never keeps the game from exiting.
     private final EventLoopGroup group = new MultiThreadIoEventLoopGroup(1,
             new DefaultThreadFactory("Osmosis Network", true), NioIoHandler.newFactory());
     private volatile @Nullable Channel channel;
+    private volatile @Nullable ChatCrypto crypto;
     // Only touched on the event loop.
     private int failedAttempts;
 
-    public OsmosisConnection(OsmosisConfig config, FriendList friends) {
+    public OsmosisConnection(OsmosisConfig config, FriendList friends, ChatLog chats) {
         this.config = config;
         this.friends = friends;
+        this.chats = chats;
     }
 
-    public void start() {
+    public void start(ChatCrypto crypto) {
+        this.crypto = crypto;
         this.group.execute(this::connect);
+    }
+
+    private ChatCrypto crypto() {
+        ChatCrypto crypto = this.crypto;
+        if (crypto == null) {
+            throw new IllegalStateException("Osmosis connection is not started");
+        }
+        return crypto;
     }
 
     public void sendRequest(String name) {
@@ -90,6 +105,36 @@ public final class OsmosisConnection {
 
     public void removeFriend(UUID id) {
         this.sendWithId(Packets.REMOVE_FRIEND, id);
+    }
+
+    /**
+     * @return {@code false} if the friend's key is unknown, so the message could not be encrypted
+     */
+    public boolean sendMessage(UUID friend, String text) {
+        byte[] sealed = this.crypto().encrypt(friend, text);
+        if (sealed == null) {
+            return false;
+        }
+        int ciphertextLength = sealed.length - ChatCrypto.NONCE_LENGTH;
+        FriendlyByteBuf buf = Packets.create(Packets.SEND_MESSAGE);
+        buf.writeUUID(friend);
+        buf.writeBytes(sealed, 0, ChatCrypto.NONCE_LENGTH);
+        buf.writeVarInt(ciphertextLength);
+        buf.writeBytes(sealed, ChatCrypto.NONCE_LENGTH, ciphertextLength);
+        this.send(buf);
+        return true;
+    }
+
+    public void requestHistory(UUID friend, long before) {
+        FriendlyByteBuf buf = Packets.create(Packets.REQUEST_HISTORY);
+        buf.writeUUID(friend);
+        buf.writeLong(before);
+        buf.writeByte(Packets.HISTORY_PAGE_SIZE);
+        this.send(buf);
+    }
+
+    public void markRead(UUID friend) {
+        this.sendWithId(Packets.MARK_READ, friend);
     }
 
     private void sendWithId(int packet, UUID id) {
@@ -161,6 +206,22 @@ public final class OsmosisConnection {
         }
     }
 
+    private void onMessage(UUID partner, ChatMessage message) {
+        this.chats.add(partner, message);
+        if (message.outgoing()) {
+            return;
+        }
+        if (ChatScreen.isViewing(partner)) {
+            this.markRead(partner);
+            return;
+        }
+        this.friends.addUnread(partner);
+        FriendProfile friend = this.friends.friend(partner);
+        if (friend != null) {
+            OsmosisToast.show(Component.literal(friend.name()), ChatScreen.preview(message), partner);
+        }
+    }
+
     private void onMainThread(Runnable task) {
         Minecraft.getInstance().execute(task);
     }
@@ -195,6 +256,7 @@ public final class OsmosisConnection {
             hello.writeVarInt(Packets.PROTOCOL_VERSION);
             hello.writeUUID(user.getProfileId());
             hello.writeUtf(user.getName(), Packets.MAX_NAME_LENGTH);
+            hello.writeByteArray(OsmosisConnection.this.crypto().publicKey());
             ctx.writeAndFlush(hello, ctx.voidPromise());
             this.pingTask = ctx.executor().scheduleAtFixedRate(
                     () -> OsmosisConnection.this.send(Packets.create(Packets.PING)),
@@ -219,6 +281,7 @@ public final class OsmosisConnection {
         protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
             FriendlyByteBuf buf = new FriendlyByteBuf(msg);
             FriendList friends = OsmosisConnection.this.friends;
+            ChatLog chats = OsmosisConnection.this.chats;
             switch (buf.readUnsignedByte()) {
                 case Packets.CHALLENGE -> {
                     String serverId = buf.readUtf(Packets.MAX_SERVER_ID_LENGTH);
@@ -226,28 +289,33 @@ public final class OsmosisConnection {
                 }
                 case Packets.WELCOME -> {
                     FriendProfile self = Packets.readProfile(buf);
-                    Map<FriendProfile, Boolean> friendList = new LinkedHashMap<>();
                     int count = buf.readVarInt();
+                    List<FriendState> friendList = new ArrayList<>(count);
                     for (int i = 0; i < count; i++) {
-                        friendList.put(Packets.readProfile(buf), buf.readBoolean());
+                        friendList.add(this.readFriend(buf));
                     }
                     List<FriendProfile> incoming = readProfiles(buf);
                     List<FriendProfile> outgoing = readProfiles(buf);
                     OsmosisConnection.this.failedAttempts = 0;
-                    OsmosisConnection.this.onMainThread(() -> friends.reset(self, friendList, incoming, outgoing));
+                    OsmosisConnection.this.onMainThread(() -> {
+                        chats.clear();
+                        friends.reset(self, friendList, incoming, outgoing);
+                    });
                 }
                 case Packets.DISCONNECT -> {
                     this.closeStatus = Packets.disconnectStatus(buf.readUnsignedByte());
                     ctx.close();
                 }
                 case Packets.FRIEND_ADDED -> {
-                    FriendProfile profile = Packets.readProfile(buf);
-                    boolean online = buf.readBoolean();
-                    OsmosisConnection.this.onMainThread(() -> friends.addFriend(profile, online));
+                    FriendState friend = this.readFriend(buf);
+                    OsmosisConnection.this.onMainThread(() -> friends.addFriend(friend.profile(), friend.online()));
                 }
                 case Packets.FRIEND_REMOVED -> {
                     UUID id = buf.readUUID();
-                    OsmosisConnection.this.onMainThread(() -> friends.removeFriend(id));
+                    OsmosisConnection.this.onMainThread(() -> {
+                        friends.removeFriend(id);
+                        chats.remove(id);
+                    });
                 }
                 case Packets.REQUEST_RECEIVED -> {
                     FriendProfile profile = Packets.readProfile(buf);
@@ -272,8 +340,45 @@ public final class OsmosisConnection {
                 }
                 case Packets.PONG -> {
                 }
+                case Packets.MESSAGE -> {
+                    UUID partner = buf.readUUID();
+                    ChatMessage message = this.readMessage(buf, partner);
+                    OsmosisConnection.this.onMainThread(() -> OsmosisConnection.this.onMessage(partner, message));
+                }
+                case Packets.HISTORY -> {
+                    UUID partner = buf.readUUID();
+                    boolean hasMore = buf.readBoolean();
+                    int count = buf.readVarInt();
+                    List<ChatMessage> messages = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) {
+                        messages.add(this.readMessage(buf, partner));
+                    }
+                    OsmosisConnection.this.onMainThread(() -> chats.addHistory(partner, messages, hasMore));
+                }
+                case Packets.FRIEND_KEY -> {
+                    UUID id = buf.readUUID();
+                    OsmosisConnection.this.crypto().setFriendKey(id, buf.readByteArray(Packets.MAX_KEY_LENGTH));
+                }
                 default -> throw new DecoderException("Unknown Osmosis packet");
             }
+        }
+
+        private FriendState readFriend(FriendlyByteBuf buf) {
+            FriendProfile profile = Packets.readProfile(buf);
+            boolean online = buf.readBoolean();
+            OsmosisConnection.this.crypto().setFriendKey(profile.id(), buf.readByteArray(Packets.MAX_KEY_LENGTH));
+            return new FriendState(profile, online, buf.readVarInt());
+        }
+
+        /** Decrypts right here on the network thread, so the render thread never waits for it. */
+        private ChatMessage readMessage(FriendlyByteBuf buf, UUID partner) {
+            boolean outgoing = buf.readBoolean();
+            long time = buf.readLong();
+            byte[] nonce = new byte[ChatCrypto.NONCE_LENGTH];
+            buf.readBytes(nonce);
+            byte[] ciphertext = buf.readByteArray(Packets.MAX_CIPHERTEXT_LENGTH);
+            String text = OsmosisConnection.this.crypto().decrypt(partner, outgoing, nonce, ciphertext);
+            return new ChatMessage(outgoing, time, text);
         }
 
         private static List<FriendProfile> readProfiles(FriendlyByteBuf buf) {

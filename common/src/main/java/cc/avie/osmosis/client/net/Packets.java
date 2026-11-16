@@ -10,9 +10,12 @@ import net.minecraft.network.FriendlyByteBuf;
  * documents the framing.
  */
 final class Packets {
-    static final int PROTOCOL_VERSION = 1;
+    static final int PROTOCOL_VERSION = 2;
     static final int MAX_NAME_LENGTH = 16;
     static final int MAX_SERVER_ID_LENGTH = 64;
+    static final int MAX_KEY_LENGTH = 64;
+    static final int MAX_CIPHERTEXT_LENGTH = 4096;
+    static final int HISTORY_PAGE_SIZE = 50;
 
     static final int HELLO = 0;
     static final int AUTHENTICATE = 1;
@@ -22,6 +25,9 @@ final class Packets {
     static final int CANCEL_REQUEST = 5;
     static final int REMOVE_FRIEND = 6;
     static final int PING = 7;
+    static final int SEND_MESSAGE = 8;
+    static final int REQUEST_HISTORY = 9;
+    static final int MARK_READ = 10;
 
     static final int CHALLENGE = 0;
     static final int WELCOME = 1;
@@ -34,6 +40,9 @@ final class Packets {
     static final int PRESENCE = 8;
     static final int ERROR = 9;
     static final int PONG = 10;
+    static final int MESSAGE = 11;
+    static final int HISTORY = 12;
+    static final int FRIEND_KEY = 13;
 
     /** Indexed by the server's {@code DisconnectReason}. */
     private static final ConnectionStatus[] DISCONNECT_REASONS = {
@@ -53,7 +62,8 @@ final class Packets {
             "already_requested",
             "friend_limit",
             "request_limit",
-            "target_limit"
+            "target_limit",
+            "not_friends"
     };
 
     private Packets() {

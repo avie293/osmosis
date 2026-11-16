@@ -12,7 +12,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 /**
- * Small icon button that opens the friend list, with a badge for pending requests like the vanilla friends button.
+ * Small icon button that opens the friend list, with a badge for requests and unread messages like the vanilla
+ * friends button.
  */
 public final class OsmosisButton extends SpriteIconButton.CenteredIcon {
     public static final int SIZE = 20;
@@ -36,9 +37,9 @@ public final class OsmosisButton extends SpriteIconButton.CenteredIcon {
     @Override
     public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         super.extractContents(graphics, mouseX, mouseY, a);
-        int requests = OsmosisClient.friends().incoming().size();
-        if (requests > 0) {
-            Identifier badge = BADGE_SPRITES[Math.min(requests, BADGE_SPRITES.length) - 1];
+        int pending = OsmosisClient.friends().incoming().size() + OsmosisClient.friends().totalUnread();
+        if (pending > 0) {
+            Identifier badge = BADGE_SPRITES[Math.min(pending, BADGE_SPRITES.length) - 1];
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED, badge, this.getX() + this.getWidth() - 5, this.getY() - 3,
                     8, 8, this.alpha);
         }

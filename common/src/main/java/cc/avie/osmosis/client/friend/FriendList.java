@@ -4,6 +4,7 @@ import cc.avie.osmosis.client.gui.OsmosisToast;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,8 @@ public final class FriendList {
     private final Map<UUID, FriendProfile> incoming = new LinkedHashMap<>();
     private final Map<UUID, FriendProfile> outgoing = new LinkedHashMap<>();
     private final Set<UUID> online = new HashSet<>();
+    private final Map<UUID, Integer> unread = new HashMap<>();
+    private int totalUnread;
     private final List<Runnable> listeners = new ArrayList<>();
     private ConnectionStatus status = ConnectionStatus.CONNECTING;
     private @Nullable FriendProfile self;
@@ -50,6 +53,34 @@ public final class FriendList {
 
     public boolean isOnline(UUID id) {
         return this.online.contains(id);
+    }
+
+    public @Nullable FriendProfile friend(UUID id) {
+        return this.friends.get(id);
+    }
+
+    public int unread(UUID id) {
+        return this.unread.getOrDefault(id, 0);
+    }
+
+    public int totalUnread() {
+        return this.totalUnread;
+    }
+
+    public void addUnread(UUID id) {
+        if (this.friends.containsKey(id)) {
+            this.unread.merge(id, 1, Integer::sum);
+            this.totalUnread++;
+            this.changed();
+        }
+    }
+
+    public void clearUnread(UUID id) {
+        Integer count = this.unread.remove(id);
+        if (count != null) {
+            this.totalUnread -= count;
+            this.changed();
+        }
     }
 
     /**
@@ -101,17 +132,24 @@ public final class FriendList {
         this.changed();
     }
 
-    public void reset(FriendProfile self, Map<FriendProfile, Boolean> friends, List<FriendProfile> incoming,
+    public void reset(FriendProfile self, List<FriendState> friends, List<FriendProfile> incoming,
                       List<FriendProfile> outgoing) {
         this.self = self;
         this.friends.clear();
         this.online.clear();
-        friends.forEach((profile, isOnline) -> {
-            this.friends.put(profile.id(), profile);
-            if (isOnline) {
-                this.online.add(profile.id());
+        this.unread.clear();
+        this.totalUnread = 0;
+        for (FriendState friend : friends) {
+            UUID id = friend.profile().id();
+            this.friends.put(id, friend.profile());
+            if (friend.online()) {
+                this.online.add(id);
             }
-        });
+            if (friend.unread() > 0) {
+                this.unread.put(id, friend.unread());
+                this.totalUnread += friend.unread();
+            }
+        }
         replace(this.incoming, incoming);
         replace(this.outgoing, outgoing);
         this.status = ConnectionStatus.CONNECTED;
@@ -140,6 +178,10 @@ public final class FriendList {
 
     public void removeFriend(UUID id) {
         this.online.remove(id);
+        Integer count = this.unread.remove(id);
+        if (count != null) {
+            this.totalUnread -= count;
+        }
         if (this.friends.remove(id) != null) {
             this.changed();
         }

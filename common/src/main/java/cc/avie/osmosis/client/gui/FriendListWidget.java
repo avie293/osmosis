@@ -29,6 +29,7 @@ final class FriendListWidget extends ContainerObjectSelectionList<FriendListWidg
     private static final int HEADER_COLOR = 0xFFA0A0A0;
     private static final int ONLINE_COLOR = 0xFF55FF55;
     private static final int OFFLINE_COLOR = 0xFFA0A0A0;
+    private static final int UNREAD_COLOR = 0xFFFFFF55;
 
     private static final Comparator<FriendProfile> BY_NAME = Comparator.comparing(FriendProfile::name,
             String.CASE_INSENSITIVE_ORDER);
@@ -122,12 +123,17 @@ final class FriendListWidget extends ContainerObjectSelectionList<FriendListWidg
         private final FriendProfile profile;
         private final Relation relation;
         private final ResolvableProfile face;
+        private final Component status;
+        private final int statusColor;
         private final List<Button> buttons = new ArrayList<>(2);
 
         private PlayerEntry(FriendProfile profile, Relation relation) {
             this.profile = profile;
             this.relation = relation;
             this.face = ResolvableProfile.createUnresolved(profile.id());
+            int unread = OsmosisClient.friends().unread(profile.id());
+            this.status = unread > 0 ? Component.translatable("osmosis.friends.unread", unread) : relation.status;
+            this.statusColor = unread > 0 ? UNREAD_COLOR : relation.color;
             var connection = OsmosisClient.connection();
             switch (relation) {
                 case INCOMING -> {
@@ -135,7 +141,11 @@ final class FriendListWidget extends ContainerObjectSelectionList<FriendListWidg
                     this.addButton("decline", () -> connection.declineRequest(profile.id()));
                 }
                 case OUTGOING -> this.addButton("cancel", () -> connection.cancelRequest(profile.id()));
-                case ONLINE, OFFLINE -> this.addButton("remove", this::confirmRemove);
+                case ONLINE, OFFLINE -> {
+                    this.addButton("chat", () -> FriendListWidget.this.minecraft.gui.setScreen(
+                            new ChatScreen(FriendListWidget.this.screen, profile)));
+                    this.addButton("remove", this::confirmRemove);
+                }
             }
         }
 
@@ -170,7 +180,7 @@ final class FriendListWidget extends ContainerObjectSelectionList<FriendListWidg
             var font = FriendListWidget.this.minecraft.font;
             int textX = x + FACE_SIZE + 8;
             graphics.text(font, this.profile.name(), textX, faceY + 2, NAME_COLOR);
-            graphics.text(font, this.relation.status, textX, faceY + 14, this.relation.color);
+            graphics.text(font, this.status, textX, faceY + 14, this.statusColor);
 
             boolean connected = FriendsScreen.isConnected();
             int buttonX = this.getContentRight() - 2;
