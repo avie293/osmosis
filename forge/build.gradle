@@ -1,0 +1,64 @@
+plugins {
+    id 'multiloader-loader'
+    id 'net.minecraftforge.gradle'
+}
+
+minecraft {
+    runs {
+        configureEach {
+            // Mixin configs come from the jar manifest in production, but not in the dev environment.
+            args "--mixin.config=${mod_id}.mixins.json", "--mixin.config=${mod_id}-forge.mixins.json"
+        }
+        register('client') {
+            workingDir = layout.projectDirectory.dir('runs/client')
+        }
+        register('server') {
+            workingDir = layout.projectDirectory.dir('runs/server')
+            args '--nogui'
+        }
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
+    annotationProcessor("net.minecraftforge:eventbus-validator:${forge_eventbus_validator_version}")
+}
+
+processResources {
+    // Forge bundles Mixin 0.8.7, which rejects compatibility levels above JAVA_21.
+    filesMatching('*.mixins.json') {
+        filter { it.replace('"JAVA_25"', '"JAVA_21"') }
+    }
+}
+
+tasks.named('jar', Jar) {
+    manifest {
+        attributes['MixinConfigs'] = "${mod_id}.mixins.json,${mod_id}-forge.mixins.json"
+    }
+}
+
+// Implements the mcgradleconventions loader attribute.
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'sourcesElements'].each { variant ->
+    configurations.named(variant) {
+        attributes {
+            attribute(loaderAttribute, 'forge')
+        }
+    }
+}
+sourceSets.configureEach {
+    [it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant ->
+        configurations.named(variant) {
+            attributes {
+                attribute(loaderAttribute, 'forge')
+            }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": [
+    "${mod_author}"
+  ],
+  "contact": {
+    "homepage": "${mod_homepage}",
+    "sources": "${mod_sources}",
+    "issues": "${mod_issues}"
+  },
+  "license": "${mod_license}",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "cc.avie.osmosis.fabric.OsmosisFabric"
+    ],
+    "client": [
+      "cc.avie.osmosis.fabric.OsmosisFabricClient"
+    ]
+  },
+  "mixins": [
+    "osmosis.mixins.json",
+    "osmosis-fabric.mixins.json"
+  ],
+  "depends": {
+    "fabric-api": "*",
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=${java_version}"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "avie.discord": "https://discord.gg/57TZ8BJvd9"
+      }
+    }
+  }
+}

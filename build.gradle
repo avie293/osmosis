@@ -1,0 +1,8 @@
+plugins {
+    // https://maven.fabricmc.net/net/fabricmc/fabric-loom/net.fabricmc.fabric-loom.gradle.plugin/maven-metadata.xml
+    id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
+    // https://projects.neoforged.net/neoforged/moddevgradle
+    id 'net.neoforged.moddev' version "${moddev_version}" apply false
+    // https://plugins.gradle.org/plugin/net.minecraftforge.gradle
+    id 'net.minecraftforge.gradle' version "${forgegradle_version}" apply false
+}
