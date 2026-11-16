@@ -34,9 +34,8 @@ public final class OsmosisScreen extends Screen {
     /** Space between the tab panel's frame and what is inside it. */
     private static final int PANEL_INSET = 5;
     private static final int ICON_BUTTON_SIZE = 19;
-    /** Leaves 3 pixels above and below in the bar, and 5 around the 8x8 arrow. */
-    private static final int BACK_BUTTON_SIZE = 18;
-    private static final int BACK_ICON_SIZE = 8;
+    /** Leaves 3 pixels above and below in the bar. */
+    private static final int BACK_BUTTON_HEIGHT = 18;
     private static final int CHAT_HEADER_HEIGHT = 30;
     private static final int INPUT_ROW_HEIGHT = 26;
     private static final int MAX_MESSAGE_LENGTH = 256;
@@ -165,9 +164,10 @@ public final class OsmosisScreen extends Screen {
         this.sidebar = this.addRenderableWidget(new SidebarList(this.minecraft, listLeft, listTop,
                 sidebarWidth - 2 * listLeft, listBottom - listTop, this));
 
-        int backMargin = (BAR_HEIGHT - BACK_BUTTON_SIZE) / 2;
-        this.addRenderableWidget(PanelButton.icon(backMargin, backMargin, BACK_BUTTON_SIZE, Sprites.sprite("icon/back"),
-                BACK_ICON_SIZE, CommonComponents.GUI_BACK, this::onClose));
+        int backMargin = (BAR_HEIGHT - BACK_BUTTON_HEIGHT) / 2;
+        int backWidth = this.font.width(CommonComponents.GUI_BACK) + 12;
+        this.addRenderableWidget(PanelButton.text(backMargin, backMargin, backWidth, BACK_BUTTON_HEIGHT,
+                CommonComponents.GUI_BACK, this::onClose));
 
         this.messages = null;
         this.input = null;
