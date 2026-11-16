@@ -4,6 +4,7 @@ import cc.avie.osmosis.client.chat.ChatCrypto;
 import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.gui.OsmosisScreen;
+import cc.avie.osmosis.client.host.WorldHost;
 import cc.avie.osmosis.client.net.OsmosisConnection;
 import cc.avie.osmosis.platform.Services;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -23,6 +24,7 @@ public final class OsmosisClient {
 
     private static final FriendList FRIENDS = new FriendList();
     private static final ChatLog CHATS = new ChatLog();
+    private static final WorldHost HOST = new WorldHost();
     private static @Nullable OsmosisConnection connection;
     private static boolean started;
 
@@ -45,6 +47,7 @@ public final class OsmosisClient {
             Path keyFile = minecraft.gameDirectory.toPath().resolve("osmosis/keys/" + account + ".key");
             connection().start(ChatCrypto.loadOrCreate(keyFile, account));
         }
+        HOST.tick();
         while (OPEN_KEY.consumeClick()) {
             if (minecraft.gui.screen() == null) {
                 minecraft.gui.setScreen(new OsmosisScreen(null));
@@ -58,6 +61,10 @@ public final class OsmosisClient {
 
     public static ChatLog chats() {
         return CHATS;
+    }
+
+    public static WorldHost host() {
+        return HOST;
     }
 
     public static OsmosisConnection connection() {

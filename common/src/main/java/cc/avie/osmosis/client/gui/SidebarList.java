@@ -5,6 +5,7 @@ import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.friend.GroupInfo;
+import cc.avie.osmosis.client.friend.HostedWorld;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -35,6 +36,7 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
     private static final int MUTED_COLOR = 0xFFA0A0A0;
     private static final int SECTION_COLOR = 0xFFFFFF55;
     private static final int ONLINE_COLOR = 0xFF55FF55;
+    private static final int HOSTING_COLOR = 0xFF55FFFF;
     private static final int OFFLINE_COLOR = 0xFF606060;
     private static final int BADGE_COLOR = 0xFFE03030;
 
@@ -70,9 +72,11 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
                 .thenComparing(FriendProfile::name, String.CASE_INSENSITIVE_ORDER));
         for (FriendProfile friend : sorted) {
             boolean online = friends.isOnline(friend.id());
-            this.addEntry(new ChatRow(ChatTarget.direct(friend.id()), friend.name(), friend.id(),
-                    Component.translatable(online ? "osmosis.friends.online" : "osmosis.friends.offline"),
-                    online ? ONLINE_COLOR : MUTED_COLOR));
+            HostedWorld world = friends.hostedWorld(friend.id());
+            Component status = world != null ? Component.translatable("osmosis.friends.hosting", world.world())
+                    : Component.translatable(online ? "osmosis.friends.online" : "osmosis.friends.offline");
+            int color = world != null ? HOSTING_COLOR : online ? ONLINE_COLOR : MUTED_COLOR;
+            this.addEntry(new ChatRow(ChatTarget.direct(friend.id()), friend.name(), friend.id(), status, color));
         }
         if (sorted.isEmpty()) {
             this.addHint("osmosis.sidebar.no_friends");
@@ -220,7 +224,7 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
                 int dotY = iconY + FACE_SIZE - 5;
                 graphics.fill(dotX, dotY, dotX + 5, dotY + 5, 0xFF000000);
                 graphics.fill(dotX + 1, dotY + 1, dotX + 4, dotY + 4,
-                        this.statusColor == ONLINE_COLOR ? ONLINE_COLOR : OFFLINE_COLOR);
+                        this.statusColor != MUTED_COLOR ? ONLINE_COLOR : OFFLINE_COLOR);
             } else {
                 Sprites.draw(graphics, Sprites.GROUP, iconX, iconY, FACE_SIZE, FACE_SIZE);
             }
@@ -236,7 +240,7 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
                 right -= badgeWidth + 4;
             }
             graphics.text(font, font.plainSubstrByWidth(this.name, right - textX), textX, y + 3, TEXT_COLOR);
-            graphics.text(font, this.status, textX, y + 13, this.statusColor);
+            graphics.text(font, font.split(this.status, right - textX).getFirst(), textX, y + 13, this.statusColor);
         }
 
         @Override

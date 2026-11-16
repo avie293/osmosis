@@ -26,6 +26,7 @@ public final class FriendList {
     private final Map<UUID, FriendProfile> outgoing = new LinkedHashMap<>();
     private final Map<UUID, FriendProfile> blocked = new LinkedHashMap<>();
     private final Map<Long, GroupInfo> groups = new LinkedHashMap<>();
+    private final Map<UUID, HostedWorld> hostedWorlds = new HashMap<>();
     private final Set<UUID> online = new HashSet<>();
     private final Map<ChatTarget, Integer> unread = new HashMap<>();
     private final List<Runnable> listeners = new ArrayList<>();
@@ -71,6 +72,30 @@ public final class FriendList {
 
     public boolean isOnline(UUID id) {
         return this.online.contains(id);
+    }
+
+    /**
+     * @return the world this player is hosting, or {@code null} if they are not hosting or we do not know about it
+     */
+    public @Nullable HostedWorld hostedWorld(UUID host) {
+        return this.hostedWorlds.get(host);
+    }
+
+    /**
+     * Records that a player started hosting, was invited, or stopped hosting when {@code world} is empty.
+     */
+    public void setHostedWorld(FriendProfile host, String world, boolean invited) {
+        HostedWorld previous = this.hostedWorlds.get(host.id());
+        if (world.isEmpty()) {
+            this.hostedWorlds.remove(host.id());
+        } else {
+            this.hostedWorlds.put(host.id(), new HostedWorld(host, world, invited));
+            if (invited && (previous == null || !previous.invited())) {
+                OsmosisToast.show(Component.translatable("osmosis.toast.invite.title", host.name()),
+                        Component.literal(world), host.id());
+            }
+        }
+        this.changed();
     }
 
     public int unread(ChatTarget target) {
@@ -140,6 +165,7 @@ public final class FriendList {
     public void reset(FriendProfile self, List<FriendState> friends, List<FriendProfile> incoming,
                       List<FriendProfile> outgoing, List<FriendProfile> blocked, Map<GroupInfo, Integer> groups) {
         this.self = self;
+        this.hostedWorlds.clear();
         this.friends.clear();
         this.online.clear();
         this.unread.clear();

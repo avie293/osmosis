@@ -12,9 +12,10 @@ import net.minecraft.network.FriendlyByteBuf;
  * documents the framing.
  */
 final class Packets {
-    static final int PROTOCOL_VERSION = 3;
+    static final int PROTOCOL_VERSION = 4;
     static final int MAX_NAME_LENGTH = 16;
     static final int MAX_GROUP_NAME_LENGTH = 24;
+    static final int MAX_WORLD_NAME_LENGTH = 64;
     static final int MAX_SERVER_ID_LENGTH = 64;
     static final int MAX_KEY_LENGTH = 64;
     static final int MAX_CIPHERTEXT_LENGTH = 4096;
@@ -43,6 +44,10 @@ final class Packets {
     static final int REQUEST_GROUP_HISTORY = 20;
     static final int MARK_GROUP_READ = 21;
     static final int DELETE_GROUP_CHAT = 22;
+    static final int START_HOSTING = 23;
+    static final int STOP_HOSTING = 24;
+    static final int INVITE = 25;
+    static final int JOIN_WORLD = 26;
 
     static final int CHALLENGE = 0;
     static final int WELCOME = 1;
@@ -64,6 +69,9 @@ final class Packets {
     static final int GROUP_REMOVED = 17;
     static final int GROUP_MESSAGE = 18;
     static final int GROUP_HISTORY = 19;
+    static final int HOSTING = 20;
+    static final int JOIN_TICKET = 21;
+    static final int GUEST_JOINING = 22;
 
     /** Indexed by the server's {@code DisconnectReason}. */
     private static final ConnectionStatus[] DISCONNECT_REASONS = {
@@ -89,7 +97,9 @@ final class Packets {
             "group_full",
             "not_group_owner",
             "invalid_group_name",
-            "player_blocked"
+            "player_blocked",
+            "not_invited",
+            "not_hosting"
     };
 
     private Packets() {

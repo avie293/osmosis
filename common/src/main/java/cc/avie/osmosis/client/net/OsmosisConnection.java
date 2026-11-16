@@ -1,6 +1,7 @@
 package cc.avie.osmosis.client.net;
 
 import cc.avie.osmosis.Osmosis;
+import cc.avie.osmosis.client.OsmosisClient;
 import cc.avie.osmosis.client.OsmosisConfig;
 import cc.avie.osmosis.client.chat.ChatCrypto;
 import cc.avie.osmosis.client.chat.ChatLog;
@@ -40,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
@@ -145,6 +147,53 @@ public final class OsmosisConnection {
 
     public void leaveGroup(long group) {
         this.sendWithGroup(Packets.LEAVE_GROUP, group);
+    }
+
+    public void startHosting(String world) {
+        FriendlyByteBuf buf = Packets.create(Packets.START_HOSTING);
+        buf.writeUtf(world.length() > Packets.MAX_WORLD_NAME_LENGTH
+                ? world.substring(0, Packets.MAX_WORLD_NAME_LENGTH) : world, Packets.MAX_WORLD_NAME_LENGTH);
+        this.send(buf);
+    }
+
+    public void stopHosting() {
+        this.send(Packets.create(Packets.STOP_HOSTING));
+    }
+
+    public void invite(UUID player) {
+        this.sendWithId(Packets.INVITE, player);
+    }
+
+    public void joinWorld(UUID host) {
+        this.sendWithId(Packets.JOIN_WORLD, host);
+    }
+
+    /**
+     * The relay's tunnel lives on the same host as the control connection, so the address that worked for that one is
+     * used again, which avoids trying IPv4 and IPv6 a second time.
+     */
+    private @Nullable InetAddress relayAddress() {
+        Channel channel = this.channel;
+        return channel != null && channel.remoteAddress() instanceof InetSocketAddress address
+                ? address.getAddress() : null;
+    }
+
+    public void openHostTunnel(byte[] ticket, int tunnelPort, int lanPort) {
+        InetAddress relay = this.relayAddress();
+        if (relay != null) {
+            TunnelBridge.host(this.group, relay, tunnelPort, ticket, lanPort);
+        }
+    }
+
+    /**
+     * @return the local port the game should connect to
+     */
+    public CompletableFuture<Integer> openGuestTunnel(byte[] ticket, int tunnelPort) {
+        InetAddress relay = this.relayAddress();
+        if (relay == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("Not connected to Osmosis"));
+        }
+        return TunnelBridge.guest(this.group, relay, tunnelPort, ticket);
     }
 
     /**
@@ -504,8 +553,32 @@ public final class OsmosisConnection {
                     }
                     connection.onMainThread(() -> chats.addHistory(ChatTarget.group(id), messages, hasMore));
                 }
+                case Packets.HOSTING -> {
+                    FriendProfile host = Packets.readProfile(buf);
+                    String world = buf.readUtf(Packets.MAX_WORLD_NAME_LENGTH);
+                    boolean invited = buf.readBoolean();
+                    connection.onMainThread(() -> friends.setHostedWorld(host, world, invited));
+                }
+                case Packets.JOIN_TICKET -> {
+                    UUID host = buf.readUUID();
+                    byte[] ticket = readTicket(buf);
+                    int port = buf.readUnsignedShort();
+                    connection.onMainThread(() -> OsmosisClient.host().onJoinTicket(host, ticket, port));
+                }
+                case Packets.GUEST_JOINING -> {
+                    FriendProfile guest = Packets.readProfile(buf);
+                    byte[] ticket = readTicket(buf);
+                    int port = buf.readUnsignedShort();
+                    connection.onMainThread(() -> OsmosisClient.host().onGuestJoining(guest, ticket, port));
+                }
                 default -> throw new DecoderException("Unknown Osmosis packet");
             }
+        }
+
+        private static byte[] readTicket(FriendlyByteBuf buf) {
+            byte[] ticket = new byte[16];
+            buf.readBytes(ticket);
+            return ticket;
         }
 
         private FriendState readFriend(FriendlyByteBuf buf) {

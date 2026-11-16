@@ -5,10 +5,12 @@ import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.friend.GroupInfo;
+import cc.avie.osmosis.client.friend.HostedWorld;
 import cc.avie.osmosis.client.gui.popup.ConfirmPopup;
 import cc.avie.osmosis.client.gui.popup.GroupMembersPopup;
 import cc.avie.osmosis.client.gui.popup.MemberPickerPopup;
 import cc.avie.osmosis.client.gui.popup.TextInputPopup;
+import cc.avie.osmosis.client.host.WorldHost;
 import cc.avie.osmosis.client.net.OsmosisConnection;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -34,17 +36,42 @@ final class ChatActions {
         if (target.isGroup()) {
             GroupInfo group = friends.group(target.group());
             if (group != null) {
+                addHostingActions(group.members(), items);
                 addGroupActions(screen, group, items);
             }
         } else {
             FriendProfile friend = friends.friend(target.friend());
             if (friend != null) {
+                addHostingActions(List.of(friend), items);
                 addFriendActions(screen, friend, items);
             }
         }
         items.add(item("delete", "osmosis.menu.delete_chat", () -> confirm(screen, "osmosis.confirm.delete_chat",
                 "osmosis.menu.delete_chat", () -> screen.deleteChat(target))));
         return items;
+    }
+
+    /** Invite while hosting, and join any of these players who host a world and invited us. */
+    private static void addHostingActions(List<FriendProfile> players, List<MenuItem> items) {
+        WorldHost host = OsmosisClient.host();
+        FriendProfile self = OsmosisClient.friends().self();
+        if (host.isHosting()) {
+            items.add(item("invite", "osmosis.menu.invite", () -> {
+                for (FriendProfile player : players) {
+                    if (self == null || !player.id().equals(self.id())) {
+                        OsmosisClient.connection().invite(player.id());
+                    }
+                }
+            }));
+        }
+        for (FriendProfile player : players) {
+            HostedWorld world = OsmosisClient.friends().hostedWorld(player.id());
+            if (world != null && world.invited()) {
+                Component label = players.size() == 1 ? Component.translatable("osmosis.menu.join")
+                        : Component.translatable("osmosis.menu.join_player", player.name());
+                items.add(new MenuItem(Sprites.sprite("menu/join"), label, () -> host.join(world)));
+            }
+        }
     }
 
     private static void addFriendActions(OsmosisScreen screen, FriendProfile friend, List<MenuItem> items) {
