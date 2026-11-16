@@ -2,7 +2,6 @@ package cc.avie.osmosis.forge;
 
 import cc.avie.osmosis.Osmosis;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 /**
@@ -10,9 +9,9 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
  */
 @Mod(Osmosis.MOD_ID)
 public final class OsmosisForge {
-    public OsmosisForge(FMLJavaModLoadingContext context) {
+    public OsmosisForge() {
         if (FMLEnvironment.dist.isClient()) {
-            OsmosisForgeClient.init(context);
+            OsmosisForgeClient.init();
         }
     }
 }
