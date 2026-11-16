@@ -5,6 +5,7 @@ import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.chat.ChatMessage;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.friend.GroupInfo;
+import cc.avie.osmosis.client.friend.HostedWorld;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -56,6 +57,11 @@ final class MessageList extends PanelList<MessageList.Entry> {
             }
             int maxBubbleWidth = this.getRowWidth() * 2 / 3;
             for (ChatMessage message : conversation.messages()) {
+                if (message.kind() == ChatMessage.INVITE && message.inviteWorldId() != null) {
+                    InviteEntry entry = new InviteEntry(message, senderName(group, message.sender()));
+                    this.addEntry(entry, entry.height());
+                    continue;
+                }
                 Component sender = group != null && !message.outgoing() ? senderName(group, message.sender()) : null;
                 BubbleEntry entry = new BubbleEntry(message, sender, maxBubbleWidth);
                 this.addEntry(entry, entry.height());
@@ -64,10 +70,12 @@ final class MessageList extends PanelList<MessageList.Entry> {
         this.setScrollAmount(this.maxScrollAmount() - fromBottom);
     }
 
-    private static Component senderName(GroupInfo group, UUID sender) {
-        for (FriendProfile member : group.members()) {
-            if (member.id().equals(sender)) {
-                return Component.literal(member.name());
+    private static Component senderName(@Nullable GroupInfo group, UUID sender) {
+        if (group != null) {
+            for (FriendProfile member : group.members()) {
+                if (member.id().equals(sender)) {
+                    return Component.literal(member.name());
+                }
             }
         }
         FriendProfile friend = OsmosisClient.friends().friend(sender);
@@ -131,6 +139,77 @@ final class MessageList extends PanelList<MessageList.Entry> {
         @Override
         public List<? extends NarratableEntry> narratables() {
             return List.of(this.button);
+        }
+    }
+
+    /** An invite to a hosted world, with a button to join it while the host still has it open. */
+    private final class InviteEntry extends Entry {
+        private static final int WIDTH = 150;
+        private static final int BUTTON_HEIGHT = 16;
+
+        private final ChatMessage message;
+        private final Component title;
+        private final Component world;
+        private final Component time;
+        private final @Nullable PanelButton joinButton;
+
+        private InviteEntry(ChatMessage message, Component sender) {
+            this.message = message;
+            this.title = message.outgoing() ? Component.translatable("osmosis.chat.invite.sent")
+                    : Component.translatable("osmosis.chat.invite.received", sender);
+            this.world = Component.literal(message.inviteWorldName());
+            this.time = Component.literal(formatTime(message.time()));
+            if (message.outgoing()) {
+                this.joinButton = null;
+            } else {
+                HostedWorld hosted = OsmosisClient.friends().hostedWorld(message.sender());
+                boolean joinable = hosted != null && hosted.invited() && hosted.id().equals(message.inviteWorldId());
+                this.joinButton = PanelButton.text(0, 0, 50, BUTTON_HEIGHT, Component.translatable("osmosis.chat.join"),
+                        () -> {
+                            if (hosted != null) {
+                                OsmosisClient.host().join(hosted);
+                            }
+                        });
+                this.joinButton.active = joinable;
+            }
+        }
+
+        private int bubbleHeight() {
+            return 2 * BUBBLE_PADDING + 2 * LINE_HEIGHT - 2 + (this.joinButton != null ? BUTTON_HEIGHT + 4 : 0);
+        }
+
+        private int height() {
+            return this.bubbleHeight() + 6;
+        }
+
+        @Override
+        public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
+            Font font = MessageList.this.minecraft.font;
+            boolean outgoing = this.message.outgoing();
+            int x = outgoing ? this.getContentRight() - WIDTH - 2 : this.getContentX() + 2;
+            int y = this.getContentY();
+            Sprites.draw(graphics, Sprites.INVITE, x, y, WIDTH, this.bubbleHeight());
+            int textX = x + BUBBLE_PADDING;
+            int textY = y + BUBBLE_PADDING;
+            graphics.text(font, this.title, textX, textY, SENDER_COLOR);
+            graphics.text(font, this.time, x + WIDTH - BUBBLE_PADDING - font.width(this.time), textY, MUTED_COLOR);
+            graphics.text(font, font.split(this.world, WIDTH - 2 * BUBBLE_PADDING).getFirst(), textX,
+                    textY + LINE_HEIGHT, TEXT_COLOR);
+            if (this.joinButton != null) {
+                this.joinButton.setPosition(x + WIDTH - BUBBLE_PADDING - this.joinButton.getWidth(),
+                        textY + 2 * LINE_HEIGHT + 2);
+                this.joinButton.extractRenderState(graphics, mouseX, mouseY, a);
+            }
+        }
+
+        @Override
+        public List<? extends GuiEventListener> children() {
+            return this.joinButton != null ? List.of(this.joinButton) : List.of();
+        }
+
+        @Override
+        public List<? extends NarratableEntry> narratables() {
+            return this.joinButton != null ? List.of(this.joinButton) : List.of();
         }
     }
 

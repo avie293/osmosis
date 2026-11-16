@@ -3,6 +3,7 @@ package cc.avie.osmosis.client;
 import cc.avie.osmosis.client.chat.ChatCrypto;
 import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.friend.FriendList;
+import cc.avie.osmosis.client.friend.HostedWorld;
 import cc.avie.osmosis.client.gui.OsmosisScreen;
 import cc.avie.osmosis.client.host.WorldHost;
 import cc.avie.osmosis.client.net.OsmosisConnection;
@@ -15,11 +16,13 @@ import net.minecraft.client.Minecraft;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Client side entry point. Each loader calls {@link #init()} once, registers {@link #OPEN_KEY} and calls
- * {@link #tick()} at the end of every client tick.
+ * Client side entry point. Each loader calls {@link #init()} once, registers {@link #OPEN_KEY} and {@link #JOIN_KEY}
+ * and calls {@link #tick()} at the end of every client tick.
  */
 public final class OsmosisClient {
     public static final KeyMapping OPEN_KEY = new KeyMapping("key.osmosis.open", InputConstants.KEY_O,
+            KeyMapping.Category.MULTIPLAYER);
+    public static final KeyMapping JOIN_KEY = new KeyMapping("key.osmosis.join", InputConstants.KEY_J,
             KeyMapping.Category.MULTIPLAYER);
 
     private static final FriendList FRIENDS = new FriendList();
@@ -51,6 +54,12 @@ public final class OsmosisClient {
         while (OPEN_KEY.consumeClick()) {
             if (minecraft.gui.screen() == null) {
                 minecraft.gui.setScreen(new OsmosisScreen(null));
+            }
+        }
+        while (JOIN_KEY.consumeClick()) {
+            HostedWorld invite = FRIENDS.lastInvite();
+            if (invite != null) {
+                HOST.join(invite);
             }
         }
     }

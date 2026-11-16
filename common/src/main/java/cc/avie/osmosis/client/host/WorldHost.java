@@ -2,20 +2,29 @@ package cc.avie.osmosis.client.host;
 
 import cc.avie.osmosis.Osmosis;
 import cc.avie.osmosis.client.OsmosisClient;
+import cc.avie.osmosis.client.chat.ChatMessage;
+import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.friend.HostedWorld;
 import cc.avie.osmosis.client.gui.OsmosisToast;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collection;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.HttpUtil;
+import net.minecraft.world.level.storage.LevelResource;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -31,7 +40,10 @@ public final class WorldHost {
      */
     private static final boolean OFFLINE_HOSTING = Boolean.getBoolean("osmosis.offlineHosting");
 
+    private static final String WORLD_ID_FILE = "osmosis.id";
+
     private @Nullable String world;
+    private @Nullable UUID worldId;
     private int lanPort;
 
     public boolean isHosting() {
@@ -64,13 +76,52 @@ public final class WorldHost {
         if (OFFLINE_HOSTING) {
             server.setUsesAuthentication(false);
         }
+        this.worldId = worldId(server.getWorldPath(LevelResource.ROOT).resolve(WORLD_ID_FILE));
         this.world = server.getWorldData().getLevelName();
-        OsmosisClient.connection().startHosting(this.world);
+        OsmosisClient.connection().startHosting(this.worldId, this.world);
+    }
+
+    /**
+     * Reads the id stored in the world folder, or creates it. Invites are remembered per id, so they survive renaming
+     * the world, and copies of a world share them.
+     */
+    private static UUID worldId(Path file) {
+        try {
+            if (Files.exists(file)) {
+                return UUID.fromString(Files.readString(file, StandardCharsets.UTF_8).strip());
+            }
+        } catch (IOException | IllegalArgumentException e) {
+            Osmosis.LOGGER.warn("Could not read {}, creating a new world id", file, e);
+        }
+        UUID id = UUID.randomUUID();
+        try {
+            Files.writeString(file, id.toString(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Osmosis.LOGGER.warn("Could not save the world id to {}", file, e);
+        }
+        return id;
+    }
+
+    /**
+     * Invites players and posts an invite message in the chat it was sent from.
+     */
+    public void invite(ChatTarget chat, Collection<FriendProfile> players) {
+        if (this.world == null || this.worldId == null) {
+            return;
+        }
+        FriendProfile self = OsmosisClient.friends().self();
+        for (FriendProfile player : players) {
+            if (self == null || !player.id().equals(self.id())) {
+                OsmosisClient.connection().invite(player.id());
+            }
+        }
+        OsmosisClient.connection().sendMessage(chat, ChatMessage.INVITE, ChatMessage.invite(this.worldId, this.world));
     }
 
     public void stop() {
         if (this.world != null) {
             this.world = null;
+            this.worldId = null;
             OsmosisClient.connection().stopHosting();
         }
     }
@@ -90,11 +141,13 @@ public final class WorldHost {
         OsmosisToast.show(Component.translatable("osmosis.host.joining", guest.name()), null, guest.id());
     }
 
+    /**
+     * Joins a friend's world, leaving the current one first like the pause menu's quit button does.
+     */
     public void join(HostedWorld world) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level != null) {
-            OsmosisToast.show(OsmosisToast.TITLE, Component.translatable("osmosis.host.leave_first"), null);
-            return;
+            minecraft.disconnectFromWorld(ClientLevel.DEFAULT_QUIT_MESSAGE);
         }
         OsmosisClient.connection().joinWorld(world.host().id());
     }

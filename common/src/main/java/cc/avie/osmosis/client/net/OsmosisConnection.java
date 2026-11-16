@@ -149,8 +149,9 @@ public final class OsmosisConnection {
         this.sendWithGroup(Packets.LEAVE_GROUP, group);
     }
 
-    public void startHosting(String world) {
+    public void startHosting(UUID worldId, String world) {
         FriendlyByteBuf buf = Packets.create(Packets.START_HOSTING);
+        buf.writeUUID(worldId);
         buf.writeUtf(world.length() > Packets.MAX_WORLD_NAME_LENGTH
                 ? world.substring(0, Packets.MAX_WORLD_NAME_LENGTH) : world, Packets.MAX_WORLD_NAME_LENGTH);
         this.send(buf);
@@ -202,8 +203,16 @@ public final class OsmosisConnection {
      * @return {@code false} if a recipient's key is unknown, so the message could not be encrypted
      */
     public boolean sendMessage(ChatTarget target, String text) {
+        return this.sendMessage(target, ChatMessage.TEXT, text);
+    }
+
+    /**
+     * @param kind {@link ChatMessage#TEXT} or {@link ChatMessage#INVITE}
+     * @return {@code false} if a recipient's key is unknown, so the message could not be encrypted
+     */
+    public boolean sendMessage(ChatTarget target, int kind, String text) {
         if (!target.isGroup()) {
-            byte[] sealed = this.crypto().encrypt(target.friend(), 0, text);
+            byte[] sealed = this.crypto().encrypt(target.friend(), 0, kind, text);
             if (sealed == null) {
                 return false;
             }
@@ -222,7 +231,7 @@ public final class OsmosisConnection {
         buf.writeLong(group.id());
         buf.writeVarInt(group.members().size());
         for (FriendProfile member : group.members()) {
-            byte[] sealed = this.crypto().encrypt(member.id(), group.id(), text);
+            byte[] sealed = this.crypto().encrypt(member.id(), group.id(), kind, text);
             if (sealed == null) {
                 buf.release();
                 return false;
@@ -359,6 +368,11 @@ public final class OsmosisConnection {
         }
         if (OsmosisScreen.isViewing(target)) {
             this.markRead(target);
+            return;
+        }
+        if (message.kind() == ChatMessage.INVITE) {
+            // The invite itself already showed a notification.
+            this.friends.addUnread(target);
             return;
         }
         this.friends.addUnread(target);
@@ -555,9 +569,10 @@ public final class OsmosisConnection {
                 }
                 case Packets.HOSTING -> {
                     FriendProfile host = Packets.readProfile(buf);
+                    UUID worldId = buf.readUUID();
                     String world = buf.readUtf(Packets.MAX_WORLD_NAME_LENGTH);
                     boolean invited = buf.readBoolean();
-                    connection.onMainThread(() -> friends.setHostedWorld(host, world, invited));
+                    connection.onMainThread(() -> friends.setHostedWorld(host, worldId, world, invited));
                 }
                 case Packets.JOIN_TICKET -> {
                     UUID host = buf.readUUID();
@@ -613,8 +628,8 @@ public final class OsmosisConnection {
             UUID self = Minecraft.getInstance().getUser().getProfileId();
             UUID sender = outgoing ? self : partner;
             UUID recipient = outgoing ? partner : self;
-            String text = OsmosisConnection.this.crypto().decrypt(sender, recipient, 0, nonce, ciphertext);
-            return new ChatMessage(sender, outgoing, time, text);
+            return message(sender, outgoing, time, OsmosisConnection.this.crypto()
+                    .decrypt(sender, recipient, 0, nonce, ciphertext));
         }
 
         private ChatMessage readGroupMessage(FriendlyByteBuf buf, long group) {
@@ -624,8 +639,14 @@ public final class OsmosisConnection {
             buf.readBytes(nonce);
             byte[] ciphertext = buf.readByteArray(Packets.MAX_CIPHERTEXT_LENGTH);
             UUID self = Minecraft.getInstance().getUser().getProfileId();
-            String text = OsmosisConnection.this.crypto().decrypt(sender, self, group, nonce, ciphertext);
-            return new ChatMessage(sender, sender.equals(self), time, text);
+            return message(sender, sender.equals(self), time, OsmosisConnection.this.crypto()
+                    .decrypt(sender, self, group, nonce, ciphertext));
+        }
+
+        private static ChatMessage message(UUID sender, boolean outgoing, long time,
+                                           ChatCrypto.@Nullable Plaintext plaintext) {
+            return plaintext == null ? new ChatMessage(sender, outgoing, ChatMessage.TEXT, time, null)
+                    : new ChatMessage(sender, outgoing, plaintext.kind(), time, plaintext.text());
         }
     }
 }

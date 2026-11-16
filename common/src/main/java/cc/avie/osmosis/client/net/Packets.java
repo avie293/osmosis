@@ -12,7 +12,7 @@ import net.minecraft.network.FriendlyByteBuf;
  * documents the framing.
  */
 final class Packets {
-    static final int PROTOCOL_VERSION = 4;
+    static final int PROTOCOL_VERSION = 5;
     static final int MAX_NAME_LENGTH = 16;
     static final int MAX_GROUP_NAME_LENGTH = 24;
     static final int MAX_WORLD_NAME_LENGTH = 64;

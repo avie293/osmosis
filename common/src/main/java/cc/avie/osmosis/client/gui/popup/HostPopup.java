@@ -1,10 +1,14 @@
 package cc.avie.osmosis.client.gui.popup;
 
 import cc.avie.osmosis.client.OsmosisClient;
+import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.friend.ConnectionStatus;
+import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.gui.PanelButton;
 import cc.avie.osmosis.client.host.WorldHost;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
@@ -56,7 +60,15 @@ public final class HostPopup extends OsmosisPopup {
     private void openInvite() {
         this.minecraft.gui.setScreen(new MemberPickerPopup(this, Component.translatable("osmosis.host.invite"),
                 MemberPickerPopup.candidates(OsmosisClient.friends().friends(), Set.of()), Integer.MAX_VALUE, false,
-                (name, picked) -> picked.forEach(OsmosisClient.connection()::invite)));
+                (name, picked) -> picked.forEach(this::invite)));
+    }
+
+    /** Each friend gets the invite in their own chat. */
+    private void invite(UUID id) {
+        FriendProfile friend = OsmosisClient.friends().friend(id);
+        if (friend != null) {
+            OsmosisClient.host().invite(ChatTarget.direct(id), List.of(friend));
+        }
     }
 
     @Override

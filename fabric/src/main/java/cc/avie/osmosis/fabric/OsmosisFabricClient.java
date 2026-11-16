@@ -13,6 +13,7 @@ public final class OsmosisFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         OsmosisClient.init();
         KeyMappingHelper.registerKeyMapping(OsmosisClient.OPEN_KEY);
+        KeyMappingHelper.registerKeyMapping(OsmosisClient.JOIN_KEY);
         ClientTickEvents.END_CLIENT_TICK.register(minecraft -> OsmosisClient.tick());
     }
 }

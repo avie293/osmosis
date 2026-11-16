@@ -1,5 +1,6 @@
 package cc.avie.osmosis.client.friend;
 
+import cc.avie.osmosis.client.OsmosisClient;
 import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.gui.OsmosisToast;
 import java.util.ArrayList;
@@ -27,12 +28,21 @@ public final class FriendList {
     private final Map<UUID, FriendProfile> blocked = new LinkedHashMap<>();
     private final Map<Long, GroupInfo> groups = new LinkedHashMap<>();
     private final Map<UUID, HostedWorld> hostedWorlds = new HashMap<>();
+    private @Nullable UUID lastInviteHost;
     private final Set<UUID> online = new HashSet<>();
     private final Map<ChatTarget, Integer> unread = new HashMap<>();
     private final List<Runnable> listeners = new ArrayList<>();
     private ConnectionStatus status = ConnectionStatus.CONNECTING;
     private @Nullable FriendProfile self;
     private boolean onlineToasts = true;
+    private int version;
+
+    /**
+     * @return a number that changes whenever anything in this list changes
+     */
+    public int version() {
+        return this.version;
+    }
 
     public ConnectionStatus status() {
         return this.status;
@@ -81,18 +91,33 @@ public final class FriendList {
         return this.hostedWorlds.get(host);
     }
 
+    public Collection<HostedWorld> hostedWorlds() {
+        return Collections.unmodifiableCollection(this.hostedWorlds.values());
+    }
+
+    /**
+     * @return the world we were most recently told we can join, if it is still hosted
+     */
+    public @Nullable HostedWorld lastInvite() {
+        HostedWorld world = this.lastInviteHost != null ? this.hostedWorlds.get(this.lastInviteHost) : null;
+        return world != null && world.invited() ? world : null;
+    }
+
     /**
      * Records that a player started hosting, was invited, or stopped hosting when {@code world} is empty.
      */
-    public void setHostedWorld(FriendProfile host, String world, boolean invited) {
+    public void setHostedWorld(FriendProfile host, UUID worldId, String world, boolean invited) {
         HostedWorld previous = this.hostedWorlds.get(host.id());
         if (world.isEmpty()) {
             this.hostedWorlds.remove(host.id());
         } else {
-            this.hostedWorlds.put(host.id(), new HostedWorld(host, world, invited));
+            this.hostedWorlds.put(host.id(), new HostedWorld(host, worldId, world, invited));
             if (invited && (previous == null || !previous.invited())) {
-                OsmosisToast.show(Component.translatable("osmosis.toast.invite.title", host.name()),
-                        Component.literal(world), host.id());
+                // Without a previous entry the host just started a world we were invited to before.
+                String title = previous == null ? "osmosis.toast.hosting.title" : "osmosis.toast.invite.title";
+                this.lastInviteHost = host.id();
+                OsmosisToast.show(Component.translatable(title, host.name()), Component.translatable(
+                        "osmosis.toast.invite", world, OsmosisClient.JOIN_KEY.getTranslatedKeyMessage()), host.id());
             }
         }
         this.changed();
@@ -166,6 +191,7 @@ public final class FriendList {
                       List<FriendProfile> outgoing, List<FriendProfile> blocked, Map<GroupInfo, Integer> groups) {
         this.self = self;
         this.hostedWorlds.clear();
+        this.lastInviteHost = null;
         this.friends.clear();
         this.online.clear();
         this.unread.clear();
@@ -295,6 +321,7 @@ public final class FriendList {
     }
 
     private void changed() {
+        this.version++;
         for (int i = 0; i < this.listeners.size(); i++) {
             this.listeners.get(i).run();
         }

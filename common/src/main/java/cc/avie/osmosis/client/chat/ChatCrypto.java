@@ -49,8 +49,8 @@ public final class ChatCrypto {
     /** Limit for decompressed messages, well above the longest message the chat screen accepts. */
     private static final int MAX_PLAINTEXT_BYTES = 4096;
     private static final int FORMAT_VERSION = 1;
-    private static final byte PLAIN = 0;
-    private static final byte DEFLATED = 1;
+    /** Lowest bit of the first plaintext byte; the bits above it hold the message kind. */
+    private static final int DEFLATED = 1;
     private static final byte[] KDF_INFO = "osmosis chat v1".getBytes(StandardCharsets.US_ASCII);
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -133,10 +133,19 @@ public final class ChatCrypto {
     }
 
     /**
+     * A decrypted message.
+     *
+     * @param kind what the text is, see {@link ChatMessage#TEXT} and {@link ChatMessage#INVITE}
+     */
+    public record Plaintext(int kind, String text) {
+    }
+
+    /**
      * @param group the group the message belongs to, or 0 for a direct message
+     * @param kind what the text is, see {@link ChatMessage#TEXT} and {@link ChatMessage#INVITE}
      * @return the nonce followed by the ciphertext, or {@code null} if the recipient's key is unknown or unusable
      */
-    public byte @Nullable [] encrypt(UUID recipient, long group, String text) {
+    public byte @Nullable [] encrypt(UUID recipient, long group, int kind, String text) {
         SecretKey key = this.sharedKey(recipient);
         if (key == null) {
             return null;
@@ -147,7 +156,7 @@ public final class ChatCrypto {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, nonce));
             cipher.updateAAD(associatedData(this.self, recipient, group));
-            byte[] ciphertext = cipher.doFinal(compress(text.getBytes(StandardCharsets.UTF_8)));
+            byte[] ciphertext = cipher.doFinal(encode(kind, text.getBytes(StandardCharsets.UTF_8)));
             return ByteBuffer.allocate(NONCE_LENGTH + ciphertext.length).put(nonce).put(ciphertext).array();
         } catch (GeneralSecurityException e) {
             Osmosis.LOGGER.error("Could not encrypt a chat message", e);
@@ -156,9 +165,9 @@ public final class ChatCrypto {
     }
 
     /**
-     * @return the message text, or {@code null} if it cannot be decrypted, for example after a key change
+     * @return the message, or {@code null} if it cannot be decrypted, for example after a key change
      */
-    public @Nullable String decrypt(UUID sender, UUID recipient, long group, byte[] nonce, byte[] ciphertext) {
+    public @Nullable Plaintext decrypt(UUID sender, UUID recipient, long group, byte[] nonce, byte[] ciphertext) {
         SecretKey key = this.sharedKey(sender.equals(this.self) ? recipient : sender);
         if (key == null) {
             return null;
@@ -167,7 +176,7 @@ public final class ChatCrypto {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, nonce));
             cipher.updateAAD(associatedData(sender, recipient, group));
-            return new String(decompress(cipher.doFinal(ciphertext)), StandardCharsets.UTF_8);
+            return decode(cipher.doFinal(ciphertext));
         } catch (GeneralSecurityException | DataFormatException e) {
             return null;
         }
@@ -221,14 +230,17 @@ public final class ChatCrypto {
         return buffer.array();
     }
 
-    /** Prefixes the data with a flag byte and deflates it, unless that would make it larger. */
-    private static byte[] compress(byte[] data) {
+    /**
+     * Prefixes the data with a byte holding the kind and whether the rest is deflated, which it is unless that would
+     * make it larger. Messages from before kinds existed start with 0 or 1, which reads as text.
+     */
+    private static byte[] encode(int kind, byte[] data) {
         Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION, true);
         try {
             deflater.setInput(data);
             deflater.finish();
             byte[] buffer = new byte[data.length + 1];
-            buffer[0] = DEFLATED;
+            buffer[0] = (byte) (kind << 1 | DEFLATED);
             int length = deflater.deflate(buffer, 1, data.length);
             if (deflater.finished() && length < data.length) {
                 return Arrays.copyOf(buffer, length + 1);
@@ -237,21 +249,21 @@ public final class ChatCrypto {
             deflater.end();
         }
         byte[] plain = new byte[data.length + 1];
-        plain[0] = PLAIN;
+        plain[0] = (byte) (kind << 1);
         System.arraycopy(data, 0, plain, 1, data.length);
         return plain;
     }
 
-    private static byte[] decompress(byte[] data) throws DataFormatException {
+    private static Plaintext decode(byte[] data) throws DataFormatException {
         if (data.length == 0) {
             throw new DataFormatException("Empty message");
         }
-        if (data[0] == PLAIN) {
-            return Arrays.copyOfRange(data, 1, data.length);
-        }
-        if (data[0] != DEFLATED) {
-            throw new DataFormatException("Unknown message encoding");
-        }
+        int kind = (data[0] & 0xFF) >> 1;
+        byte[] text = (data[0] & DEFLATED) != 0 ? inflate(data) : Arrays.copyOfRange(data, 1, data.length);
+        return new Plaintext(kind, new String(text, StandardCharsets.UTF_8));
+    }
+
+    private static byte[] inflate(byte[] data) throws DataFormatException {
         Inflater inflater = new Inflater(true);
         try {
             inflater.setInput(data, 1, data.length - 1);

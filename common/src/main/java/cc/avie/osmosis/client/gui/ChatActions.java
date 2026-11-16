@@ -36,13 +36,13 @@ final class ChatActions {
         if (target.isGroup()) {
             GroupInfo group = friends.group(target.group());
             if (group != null) {
-                addHostingActions(group.members(), items);
+                addHostingActions(target, group.members(), items);
                 addGroupActions(screen, group, items);
             }
         } else {
             FriendProfile friend = friends.friend(target.friend());
             if (friend != null) {
-                addHostingActions(List.of(friend), items);
+                addHostingActions(target, List.of(friend), items);
                 addFriendActions(screen, friend, items);
             }
         }
@@ -52,17 +52,10 @@ final class ChatActions {
     }
 
     /** Invite while hosting, and join any of these players who host a world and invited us. */
-    private static void addHostingActions(List<FriendProfile> players, List<MenuItem> items) {
+    private static void addHostingActions(ChatTarget chat, List<FriendProfile> players, List<MenuItem> items) {
         WorldHost host = OsmosisClient.host();
-        FriendProfile self = OsmosisClient.friends().self();
         if (host.isHosting()) {
-            items.add(item("invite", "osmosis.menu.invite", () -> {
-                for (FriendProfile player : players) {
-                    if (self == null || !player.id().equals(self.id())) {
-                        OsmosisClient.connection().invite(player.id());
-                    }
-                }
-            }));
+            items.add(item("invite", "osmosis.menu.invite", () -> host.invite(chat, players)));
         }
         for (FriendProfile player : players) {
             HostedWorld world = OsmosisClient.friends().hostedWorld(player.id());

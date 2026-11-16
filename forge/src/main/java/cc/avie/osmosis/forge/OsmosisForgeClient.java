@@ -14,7 +14,10 @@ public final class OsmosisForgeClient {
 
     static void init() {
         OsmosisClient.init();
-        RegisterKeyMappingsEvent.BUS.addListener(event -> event.register(OsmosisClient.OPEN_KEY));
+        RegisterKeyMappingsEvent.BUS.addListener(event -> {
+            event.register(OsmosisClient.OPEN_KEY);
+            event.register(OsmosisClient.JOIN_KEY);
+        });
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> OsmosisClient.tick());
     }
 }

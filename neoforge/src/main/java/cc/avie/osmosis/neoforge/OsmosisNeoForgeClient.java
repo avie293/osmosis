@@ -16,7 +16,10 @@ import net.neoforged.neoforge.common.NeoForge;
 public final class OsmosisNeoForgeClient {
     public OsmosisNeoForgeClient(IEventBus modBus) {
         OsmosisClient.init();
-        modBus.addListener((RegisterKeyMappingsEvent event) -> event.register(OsmosisClient.OPEN_KEY));
+        modBus.addListener((RegisterKeyMappingsEvent event) -> {
+            event.register(OsmosisClient.OPEN_KEY);
+            event.register(OsmosisClient.JOIN_KEY);
+        });
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> OsmosisClient.tick());
     }
 }

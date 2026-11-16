@@ -23,6 +23,7 @@ public final class Sprites {
     public static final Identifier TAB_CONTENT = sprite("panel/tab_content");
     public static final Identifier BUBBLE_OUTGOING = sprite("bubble/outgoing");
     public static final Identifier BUBBLE_INCOMING = sprite("bubble/incoming");
+    public static final Identifier INVITE = sprite("bubble/invite");
     public static final Identifier GROUP = sprite("icon/group");
 
     private Sprites() {
