@@ -28,8 +28,10 @@ import org.jspecify.annotations.Nullable;
  * The list on the left: groups and friends on the first tab, requests and blocked players on the second.
  */
 final class SidebarList extends PanelList<SidebarList.Entry> {
-    private static final int ROW_HEIGHT = 22;
-    private static final int SECTION_HEIGHT = 16;
+    // Rows lose 2 pixels of padding on each side, so these leave 24 and 16 pixels for the content.
+    private static final int ROW_HEIGHT = 28;
+    private static final int SECTION_HEIGHT = 20;
+    private static final int FACE_SIZE = 16;
     private static final int TEXT_COLOR = 0xFFFFFFFF;
     private static final int MUTED_COLOR = 0xFFA0A0A0;
     private static final int SECTION_COLOR = 0xFFFFFF55;
@@ -154,9 +156,10 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             graphics.text(SidebarList.this.minecraft.font, this.title, this.getContentX() + 2,
-                    this.getContentY() + 4, SECTION_COLOR);
+                    this.getContentY() + (this.getContentHeight() - 8) / 2, SECTION_COLOR);
             if (this.button != null) {
-                this.button.setPosition(this.getContentRight() - 15, this.getContentY() + 1);
+                this.button.setPosition(this.getContentRight() - this.button.getWidth(),
+                        this.getContentY() + (this.getContentHeight() - this.button.getHeight()) / 2);
                 this.button.extractRenderState(graphics, mouseX, mouseY, a);
             }
         }
@@ -181,8 +184,8 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
 
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
-            graphics.text(SidebarList.this.minecraft.font, this.text, this.getContentX() + 6, this.getContentY() + 4,
-                    MUTED_COLOR);
+            graphics.text(SidebarList.this.minecraft.font, this.text, this.getContentX() + 6,
+                    this.getContentY() + (this.getContentHeight() - 8) / 2, MUTED_COLOR);
         }
     }
 
@@ -213,25 +216,32 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
             } else if (hovered) {
                 Sprites.draw(graphics, Sprites.HOVERED, x, y, this.getContentWidth(), this.getContentHeight());
             }
-            int iconY = y + (this.getContentHeight() - 16) / 2;
+            int iconX = x + 4;
+            int iconY = y + (this.getContentHeight() - FACE_SIZE) / 2;
             if (this.face != null) {
-                PlayerFaceExtractor.extractRenderState(graphics, this.face, x + 3, iconY, 16);
-                graphics.fill(x + 15, iconY + 12, x + 20, iconY + 17, 0xFF000000);
-                graphics.fill(x + 16, iconY + 13, x + 19, iconY + 16,
+                PlayerFaceExtractor.extractRenderState(graphics, this.face, iconX, iconY, FACE_SIZE);
+                // Status dot in the bottom right corner of the face, with a dark outline.
+                int dotX = iconX + FACE_SIZE - 5;
+                int dotY = iconY + FACE_SIZE - 5;
+                graphics.fill(dotX, dotY, dotX + 5, dotY + 5, 0xFF000000);
+                graphics.fill(dotX + 1, dotY + 1, dotX + 4, dotY + 4,
                         this.statusColor == ONLINE_COLOR ? ONLINE_COLOR : OFFLINE_COLOR);
             } else {
-                Sprites.draw(graphics, Sprites.GROUP, x + 3, iconY, 16, 16);
+                Sprites.draw(graphics, Sprites.GROUP, iconX, iconY, FACE_SIZE, FACE_SIZE);
             }
             Font font = SidebarList.this.minecraft.font;
-            int textWidth = this.getContentWidth() - 26 - (this.unread > 0 ? 14 : 0);
-            graphics.text(font, font.plainSubstrByWidth(this.name, textWidth), x + 23, y + 2, TEXT_COLOR);
-            graphics.text(font, this.status, x + 23, y + 12, this.statusColor);
+            int textX = iconX + FACE_SIZE + 5;
+            int right = this.getContentRight() - 4;
             if (this.unread > 0) {
                 String count = this.unread > 9 ? "9+" : Integer.toString(this.unread);
-                int badgeX = x + this.getContentWidth() - 4 - Math.max(9, font.width(count) + 4);
-                graphics.fill(badgeX, y + 6, x + this.getContentWidth() - 4, y + 16, BADGE_COLOR);
-                graphics.centeredText(font, count, (badgeX + x + this.getContentWidth() - 4) / 2, y + 7, TEXT_COLOR);
+                int badgeWidth = Math.max(10, font.width(count) + 4);
+                int badgeY = y + (this.getContentHeight() - 10) / 2;
+                graphics.fill(right - badgeWidth, badgeY, right, badgeY + 10, BADGE_COLOR);
+                graphics.centeredText(font, count, right - badgeWidth / 2, badgeY + 1, TEXT_COLOR);
+                right -= badgeWidth + 4;
             }
+            graphics.text(font, font.plainSubstrByWidth(this.name, right - textX), textX, y + 3, TEXT_COLOR);
+            graphics.text(font, this.status, textX, y + 13, this.statusColor);
         }
 
         @Override
@@ -261,11 +271,12 @@ final class SidebarList extends PanelList<SidebarList.Entry> {
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             int x = this.getContentX();
             int y = this.getContentY();
-            PlayerFaceExtractor.extractRenderState(graphics, this.face, x + 3, y + (this.getContentHeight() - 16) / 2,
-                    16);
+            PlayerFaceExtractor.extractRenderState(graphics, this.face, x + 4,
+                    y + (this.getContentHeight() - FACE_SIZE) / 2, FACE_SIZE);
             Font font = SidebarList.this.minecraft.font;
-            int textWidth = this.getContentWidth() - 26 - this.buttons.size() * 16;
-            graphics.text(font, font.plainSubstrByWidth(this.profile.name(), textWidth), x + 23,
+            int textX = x + 4 + FACE_SIZE + 5;
+            int textWidth = this.getContentRight() - 4 - this.buttons.size() * 16 - textX;
+            graphics.text(font, font.plainSubstrByWidth(this.profile.name(), textWidth), textX,
                     y + (this.getContentHeight() - 8) / 2, TEXT_COLOR);
             int buttonX = this.getContentRight() - 2;
             for (int i = this.buttons.size() - 1; i >= 0; i--) {

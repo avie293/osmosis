@@ -98,7 +98,7 @@ public final class GroupMembersPopup extends OsmosisPopup {
             Component label = Component.translatable("osmosis.group.remove_member");
             return SpriteIconButton.builder(label,
                             button -> OsmosisClient.connection().removeGroupMember(group, member), true)
-                    .width(20)
+                    .size(16, 16)
                     .sprite(Sprites.sprite("menu/remove"), 9, 9)
                     .withTootip()
                     .build();
@@ -117,8 +117,8 @@ public final class GroupMembersPopup extends OsmosisPopup {
                         this.getContentRight() - 4 - GroupMembersPopup.this.font.width(tag), y + 4, OWNER_COLOR);
             }
             for (Button button : this.buttons) {
-                int buttonY = this.getContentY() + (this.getContentHeight() - 20) / 2;
-                button.setPosition(this.getContentRight() - 22, buttonY);
+                int buttonY = this.getContentY() + (this.getContentHeight() - button.getHeight()) / 2;
+                button.setPosition(this.getContentRight() - button.getWidth() - 2, buttonY);
                 button.extractRenderState(graphics, mouseX, mouseY, a);
             }
         }

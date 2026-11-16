@@ -120,7 +120,7 @@ final class MessageList extends PanelList<MessageList.Entry> {
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             this.button.setPosition(this.getContentX() + (this.getContentWidth() - this.button.getWidth()) / 2,
-                    this.getContentY() + 2);
+                    this.getContentY());
             this.button.extractRenderState(graphics, mouseX, mouseY, a);
         }
 
@@ -167,15 +167,16 @@ final class MessageList extends PanelList<MessageList.Entry> {
             return lines * LINE_HEIGHT + 2 * BUBBLE_PADDING - 2;
         }
 
+        /** The bubble plus the 2 pixels of padding on each side that every row gets, and 2 pixels of spacing. */
         private int height() {
-            return this.bubbleHeight() + 4;
+            return this.bubbleHeight() + 6;
         }
 
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             Font font = MessageList.this.minecraft.font;
             int x = this.outgoing ? this.getContentRight() - this.bubbleWidth - 2 : this.getContentX() + 2;
-            int y = this.getContentY() + 2;
+            int y = this.getContentY();
             Sprites.draw(graphics, this.outgoing ? Sprites.BUBBLE_OUTGOING : Sprites.BUBBLE_INCOMING, x, y,
                     this.bubbleWidth, this.bubbleHeight());
             int textX = x + BUBBLE_PADDING;
