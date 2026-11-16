@@ -29,6 +29,10 @@ public final class OsmosisScreen extends Screen {
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
     private static final int BAR_HEIGHT = 24;
     private static final int TAB_HEIGHT = 18;
+    /** Space between the sidebar edge and the tabs and the panel below them. */
+    private static final int SIDEBAR_MARGIN = 4;
+    /** Space between the tab panel's frame and what is inside it. */
+    private static final int PANEL_INSET = 5;
     private static final int ICON_BUTTON_SIZE = 19;
     private static final int CHAT_HEADER_HEIGHT = 30;
     private static final int INPUT_ROW_HEIGHT = 26;
@@ -110,23 +114,33 @@ public final class OsmosisScreen extends Screen {
         return Math.max(120, this.width / 5);
     }
 
+    /** The selected tab reaches 2 pixels into the panel below, covering its frame so both look like one piece. */
+    private int tabPanelTop() {
+        return BAR_HEIGHT + SIDEBAR_MARGIN + TAB_HEIGHT;
+    }
+
     @Override
     protected void init() {
         int sidebarWidth = this.sidebarWidth();
         int contentTop = BAR_HEIGHT;
         int contentBottom = this.height - BAR_HEIGHT;
 
-        int tabWidth = (sidebarWidth - 6) / 2;
-        this.addRenderableWidget(new TabButton(2, contentTop + 2, tabWidth, TAB_HEIGHT,
+        int tabTop = contentTop + SIDEBAR_MARGIN;
+        int tabWidth = (sidebarWidth - 2 * SIDEBAR_MARGIN - 2) / 2;
+        this.addRenderableWidget(new TabButton(SIDEBAR_MARGIN, tabTop, tabWidth, TAB_HEIGHT,
                 Component.translatable("osmosis.sidebar.tab.friends"), () -> !this.requestsTab,
                 () -> this.switchTab(false)));
-        this.requestsTabButton = this.addRenderableWidget(new TabButton(4 + tabWidth, contentTop + 2, tabWidth,
-                TAB_HEIGHT, this.requestsTabLabel(), () -> this.requestsTab, () -> this.switchTab(true)));
+        this.requestsTabButton = this.addRenderableWidget(new TabButton(SIDEBAR_MARGIN + tabWidth + 2, tabTop,
+                tabWidth, TAB_HEIGHT, this.requestsTabLabel(), () -> this.requestsTab, () -> this.switchTab(true)));
 
-        int listTop = contentTop + TAB_HEIGHT + 4;
+        int panelTop = this.tabPanelTop();
+        int innerLeft = SIDEBAR_MARGIN + PANEL_INSET;
+        int innerRight = sidebarWidth - SIDEBAR_MARGIN - PANEL_INSET;
+        int listTop = panelTop + 3;
         if (this.requestsTab) {
-            EditBox nameBox = new EditBox(this.font, 4, listTop, sidebarWidth - ICON_BUTTON_SIZE - 10,
-                    ICON_BUTTON_SIZE,
+            int boxTop = panelTop + PANEL_INSET;
+            int buttonX = innerRight - ICON_BUTTON_SIZE;
+            EditBox nameBox = new EditBox(this.font, innerLeft, boxTop, buttonX - 3 - innerLeft, ICON_BUTTON_SIZE,
                     Component.translatable("osmosis.friends.name_hint"));
             nameBox.setHint(Component.translatable("osmosis.friends.name_hint"));
             nameBox.setMaxLength(16);
@@ -136,15 +150,17 @@ public final class OsmosisScreen extends Screen {
                 this.updateButtons();
             });
             this.addRenderableWidget(nameBox);
-            this.addButton = this.addRenderableWidget(PanelButton.icon(sidebarWidth - ICON_BUTTON_SIZE - 4, listTop,
-                    ICON_BUTTON_SIZE, Sprites.sprite("friends/add"), Component.translatable("osmosis.friends.add"),
-                    this::sendRequest));
-            listTop += ICON_BUTTON_SIZE + 3;
+            this.addButton = this.addRenderableWidget(PanelButton.icon(buttonX, boxTop, ICON_BUTTON_SIZE,
+                    Sprites.sprite("friends/add"), Component.translatable("osmosis.friends.add"), this::sendRequest));
+            listTop = boxTop + ICON_BUTTON_SIZE + 3;
         } else {
             this.addButton = null;
         }
-        this.sidebar = this.addRenderableWidget(new SidebarList(this.minecraft, 0, listTop, sidebarWidth,
-                contentBottom - listTop, this));
+        // The list sits just inside the panel's 2 pixel frame and scrolls under nothing else.
+        int listLeft = SIDEBAR_MARGIN + 2;
+        int listBottom = contentBottom - SIDEBAR_MARGIN - 2;
+        this.sidebar = this.addRenderableWidget(new SidebarList(this.minecraft, listLeft, listTop,
+                sidebarWidth - 2 * listLeft, listBottom - listTop, this));
 
         this.addRenderableWidget(PanelButton.text(this.width - 84, this.height - BAR_HEIGHT + 2, 80, 20,
                 CommonComponents.GUI_DONE, this::onClose));
@@ -320,6 +336,9 @@ public final class OsmosisScreen extends Screen {
         super.extractBackground(graphics, mouseX, mouseY, a);
         int sidebarWidth = this.sidebarWidth();
         Sprites.draw(graphics, Sprites.SIDEBAR, 0, BAR_HEIGHT, sidebarWidth, this.height - 2 * BAR_HEIGHT);
+        int panelTop = this.tabPanelTop();
+        Sprites.draw(graphics, Sprites.TAB_CONTENT, SIDEBAR_MARGIN, panelTop, sidebarWidth - 2 * SIDEBAR_MARGIN,
+                this.height - BAR_HEIGHT - SIDEBAR_MARGIN - panelTop);
         Sprites.draw(graphics, Sprites.CHAT, sidebarWidth, BAR_HEIGHT, this.width - sidebarWidth,
                 this.height - 2 * BAR_HEIGHT);
         Sprites.draw(graphics, Sprites.BAR, 0, 0, this.width, BAR_HEIGHT);

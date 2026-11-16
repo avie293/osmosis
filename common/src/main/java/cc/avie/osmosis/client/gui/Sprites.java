@@ -20,6 +20,7 @@ public final class Sprites {
     public static final Identifier BUTTON_DISABLED = sprite("button/disabled");
     public static final Identifier TAB = sprite("panel/tab");
     public static final Identifier TAB_SELECTED = sprite("panel/tab_selected");
+    public static final Identifier TAB_CONTENT = sprite("panel/tab_content");
     public static final Identifier BUBBLE_OUTGOING = sprite("bubble/outgoing");
     public static final Identifier BUBBLE_INCOMING = sprite("bubble/incoming");
     public static final Identifier GROUP = sprite("icon/group");
