@@ -1,5 +1,6 @@
 package cc.avie.osmosis.client.friend;
 
+import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.gui.OsmosisToast;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,7 +16,7 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The client's view of its friends and requests, mirrored from the server.
+ * The client's view of its friends, requests, blocked players and groups, mirrored from the server.
  *
  * <p>Only touched on the render thread. The connection hands every update over to it.
  */
@@ -23,9 +24,10 @@ public final class FriendList {
     private final Map<UUID, FriendProfile> friends = new LinkedHashMap<>();
     private final Map<UUID, FriendProfile> incoming = new LinkedHashMap<>();
     private final Map<UUID, FriendProfile> outgoing = new LinkedHashMap<>();
+    private final Map<UUID, FriendProfile> blocked = new LinkedHashMap<>();
+    private final Map<Long, GroupInfo> groups = new LinkedHashMap<>();
     private final Set<UUID> online = new HashSet<>();
-    private final Map<UUID, Integer> unread = new HashMap<>();
-    private int totalUnread;
+    private final Map<ChatTarget, Integer> unread = new HashMap<>();
     private final List<Runnable> listeners = new ArrayList<>();
     private ConnectionStatus status = ConnectionStatus.CONNECTING;
     private @Nullable FriendProfile self;
@@ -51,40 +53,40 @@ public final class FriendList {
         return Collections.unmodifiableCollection(this.outgoing.values());
     }
 
-    public boolean isOnline(UUID id) {
-        return this.online.contains(id);
+    public Collection<FriendProfile> blocked() {
+        return Collections.unmodifiableCollection(this.blocked.values());
+    }
+
+    public Collection<GroupInfo> groups() {
+        return Collections.unmodifiableCollection(this.groups.values());
     }
 
     public @Nullable FriendProfile friend(UUID id) {
         return this.friends.get(id);
     }
 
-    public int unread(UUID id) {
-        return this.unread.getOrDefault(id, 0);
+    public @Nullable GroupInfo group(long id) {
+        return this.groups.get(id);
+    }
+
+    public boolean isOnline(UUID id) {
+        return this.online.contains(id);
+    }
+
+    public int unread(ChatTarget target) {
+        return this.unread.getOrDefault(target, 0);
     }
 
     public int totalUnread() {
-        return this.totalUnread;
-    }
-
-    public void addUnread(UUID id) {
-        if (this.friends.containsKey(id)) {
-            this.unread.merge(id, 1, Integer::sum);
-            this.totalUnread++;
-            this.changed();
+        int total = 0;
+        for (int count : this.unread.values()) {
+            total += count;
         }
-    }
-
-    public void clearUnread(UUID id) {
-        Integer count = this.unread.remove(id);
-        if (count != null) {
-            this.totalUnread -= count;
-            this.changed();
-        }
+        return total;
     }
 
     /**
-     * @return the relation to the player with this name, or {@code null} if there is none
+     * @return why a request to this name makes no sense, or {@code null} if it can be sent
      */
     public @Nullable Component describeRelation(String name) {
         if (this.self != null && this.self.name().equalsIgnoreCase(name)) {
@@ -95,6 +97,9 @@ public final class FriendList {
         }
         if (containsName(this.outgoing, name)) {
             return Component.translatable("osmosis.error.already_requested");
+        }
+        if (containsName(this.blocked, name)) {
+            return Component.translatable("osmosis.error.player_blocked");
         }
         return null;
     }
@@ -133,25 +138,27 @@ public final class FriendList {
     }
 
     public void reset(FriendProfile self, List<FriendState> friends, List<FriendProfile> incoming,
-                      List<FriendProfile> outgoing) {
+                      List<FriendProfile> outgoing, List<FriendProfile> blocked, Map<GroupInfo, Integer> groups) {
         this.self = self;
         this.friends.clear();
         this.online.clear();
         this.unread.clear();
-        this.totalUnread = 0;
         for (FriendState friend : friends) {
             UUID id = friend.profile().id();
             this.friends.put(id, friend.profile());
             if (friend.online()) {
                 this.online.add(id);
             }
-            if (friend.unread() > 0) {
-                this.unread.put(id, friend.unread());
-                this.totalUnread += friend.unread();
-            }
+            this.setUnread(ChatTarget.direct(id), friend.unread());
         }
         replace(this.incoming, incoming);
         replace(this.outgoing, outgoing);
+        replace(this.blocked, blocked);
+        this.groups.clear();
+        groups.forEach((group, unread) -> {
+            this.groups.put(group.id(), group);
+            this.setUnread(ChatTarget.group(group.id()), unread);
+        });
         this.status = ConnectionStatus.CONNECTED;
         this.changed();
     }
@@ -160,6 +167,25 @@ public final class FriendList {
         target.clear();
         for (FriendProfile profile : profiles) {
             target.put(profile.id(), profile);
+        }
+    }
+
+    private void setUnread(ChatTarget target, int count) {
+        if (count > 0) {
+            this.unread.put(target, count);
+        } else {
+            this.unread.remove(target);
+        }
+    }
+
+    public void addUnread(ChatTarget target) {
+        this.unread.merge(target, 1, Integer::sum);
+        this.changed();
+    }
+
+    public void clearUnread(ChatTarget target) {
+        if (this.unread.remove(target) != null) {
+            this.changed();
         }
     }
 
@@ -178,10 +204,7 @@ public final class FriendList {
 
     public void removeFriend(UUID id) {
         this.online.remove(id);
-        Integer count = this.unread.remove(id);
-        if (count != null) {
-            this.totalUnread -= count;
-        }
+        this.unread.remove(ChatTarget.direct(id));
         if (this.friends.remove(id) != null) {
             this.changed();
         }
@@ -203,6 +226,30 @@ public final class FriendList {
         boolean removed = this.incoming.remove(id) != null;
         removed |= this.outgoing.remove(id) != null;
         if (removed) {
+            this.changed();
+        }
+    }
+
+    public void addBlocked(FriendProfile profile) {
+        this.blocked.put(profile.id(), profile);
+        this.changed();
+    }
+
+    public void removeBlocked(UUID id) {
+        if (this.blocked.remove(id) != null) {
+            this.changed();
+        }
+    }
+
+    public void putGroup(GroupInfo group, int unread) {
+        this.groups.put(group.id(), group);
+        this.setUnread(ChatTarget.group(group.id()), unread);
+        this.changed();
+    }
+
+    public void removeGroup(long id) {
+        this.unread.remove(ChatTarget.group(id));
+        if (this.groups.remove(id) != null) {
             this.changed();
         }
     }

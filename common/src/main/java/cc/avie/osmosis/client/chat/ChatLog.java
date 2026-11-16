@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Conversations loaded from the server in this session. History is fetched page by page when a chat is opened, so
@@ -14,11 +13,11 @@ import java.util.UUID;
  * <p>Only touched on the render thread.
  */
 public final class ChatLog {
-    private final Map<UUID, Conversation> conversations = new HashMap<>();
+    private final Map<ChatTarget, Conversation> conversations = new HashMap<>();
     private final List<Runnable> listeners = new ArrayList<>();
 
-    public Conversation get(UUID friend) {
-        return this.conversations.computeIfAbsent(friend, id -> new Conversation());
+    public Conversation get(ChatTarget target) {
+        return this.conversations.computeIfAbsent(target, id -> new Conversation());
     }
 
     public void addListener(Runnable listener) {
@@ -29,8 +28,8 @@ public final class ChatLog {
         this.listeners.remove(listener);
     }
 
-    public void add(UUID friend, ChatMessage message) {
-        Conversation conversation = this.conversations.get(friend);
+    public void add(ChatTarget target, ChatMessage message) {
+        Conversation conversation = this.conversations.get(target);
         // Conversations that were never opened get the message with their first history page instead.
         if (conversation != null && conversation.loaded) {
             conversation.messages.add(message);
@@ -38,8 +37,8 @@ public final class ChatLog {
         }
     }
 
-    public void addHistory(UUID friend, List<ChatMessage> older, boolean hasMore) {
-        Conversation conversation = this.get(friend);
+    public void addHistory(ChatTarget target, List<ChatMessage> older, boolean hasMore) {
+        Conversation conversation = this.get(target);
         conversation.messages.addAll(0, older);
         conversation.hasMore = hasMore;
         conversation.loaded = true;
@@ -47,10 +46,20 @@ public final class ChatLog {
         this.changed();
     }
 
-    public void remove(UUID friend) {
-        if (this.conversations.remove(friend) != null) {
+    public void remove(ChatTarget target) {
+        if (this.conversations.remove(target) != null) {
             this.changed();
         }
+    }
+
+    /** Empties a conversation after the player deleted it for themselves. */
+    public void deleteMessages(ChatTarget target) {
+        Conversation conversation = this.get(target);
+        conversation.messages.clear();
+        conversation.hasMore = false;
+        conversation.loaded = true;
+        conversation.loading = false;
+        this.changed();
     }
 
     /** Forgets everything, used after reconnecting since the server is the source of truth. */

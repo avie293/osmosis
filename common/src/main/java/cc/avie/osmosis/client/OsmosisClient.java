@@ -3,7 +3,7 @@ package cc.avie.osmosis.client;
 import cc.avie.osmosis.client.chat.ChatCrypto;
 import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.friend.FriendList;
-import cc.avie.osmosis.client.gui.FriendsScreen;
+import cc.avie.osmosis.client.gui.OsmosisScreen;
 import cc.avie.osmosis.client.net.OsmosisConnection;
 import cc.avie.osmosis.platform.Services;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -47,7 +47,7 @@ public final class OsmosisClient {
         }
         while (OPEN_KEY.consumeClick()) {
             if (minecraft.gui.screen() == null) {
-                minecraft.gui.setScreen(new FriendsScreen(null));
+                minecraft.gui.setScreen(new OsmosisScreen(null));
             }
         }
     }

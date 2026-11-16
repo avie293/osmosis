@@ -1,14 +1,17 @@
 package cc.avie.osmosis.client.gui;
 
+import cc.avie.osmosis.client.OsmosisClient;
 import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.chat.ChatMessage;
 import cc.avie.osmosis.client.friend.FriendProfile;
+import cc.avie.osmosis.client.friend.GroupInfo;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -18,33 +21,29 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import org.jspecify.annotations.Nullable;
 
-final class ChatMessageList extends ContainerObjectSelectionList<ChatMessageList.Entry> {
-    private static final int MAX_ROW_WIDTH = 310;
+/**
+ * Messages of one conversation as bubbles: outgoing on the right in a lighter bubble, incoming on the left in a
+ * darker one.
+ */
+final class MessageList extends PanelList<MessageList.Entry> {
     private static final int LINE_HEIGHT = 10;
-    private static final int TEXT_ROW_HEIGHT = 20;
-    private static final int OWN_NAME_COLOR = 0xFF55FFFF;
-    private static final int FRIEND_NAME_COLOR = 0xFFFFFF55;
+    private static final int BUBBLE_PADDING = 5;
     private static final int TEXT_COLOR = 0xFFFFFFFF;
     private static final int MUTED_COLOR = 0xFFA0A0A0;
+    private static final int SENDER_COLOR = 0xFFFFFF55;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    private final FriendProfile friend;
     private final Runnable loadOlder;
 
-    ChatMessageList(Minecraft minecraft, int width, int height, int y, FriendProfile friend, Runnable loadOlder) {
-        super(minecraft, width, height, y, TEXT_ROW_HEIGHT);
-        this.friend = friend;
+    MessageList(Minecraft minecraft, int x, int y, int width, int height, Runnable loadOlder) {
+        super(minecraft, x, y, width, height, 20);
         this.loadOlder = loadOlder;
     }
 
-    @Override
-    public int getRowWidth() {
-        return Math.min(MAX_ROW_WIDTH, this.width - 20);
-    }
-
-    void rebuild(ChatLog.Conversation conversation) {
+    void rebuild(ChatLog.Conversation conversation, @Nullable GroupInfo group) {
         // Measured from the bottom, so new messages keep the view at the end and older ones do not move it.
         double fromBottom = this.maxScrollAmount() - this.scrollAmount();
         this.clearEntries();
@@ -56,13 +55,24 @@ final class ChatMessageList extends ContainerObjectSelectionList<ChatMessageList
             if (conversation.hasMore()) {
                 this.addEntry(new LoadOlderEntry(conversation.isLoading()), 24);
             }
-            int textWidth = this.getRowWidth() - 8;
+            int maxBubbleWidth = this.getRowWidth() * 2 / 3;
             for (ChatMessage message : conversation.messages()) {
-                MessageEntry entry = new MessageEntry(message, textWidth);
+                Component sender = group != null && !message.outgoing() ? senderName(group, message.sender()) : null;
+                BubbleEntry entry = new BubbleEntry(message, sender, maxBubbleWidth);
                 this.addEntry(entry, entry.height());
             }
         }
         this.setScrollAmount(this.maxScrollAmount() - fromBottom);
+    }
+
+    private static Component senderName(GroupInfo group, UUID sender) {
+        for (FriendProfile member : group.members()) {
+            if (member.id().equals(sender)) {
+                return Component.literal(member.name());
+            }
+        }
+        FriendProfile friend = OsmosisClient.friends().friend(sender);
+        return friend != null ? Component.literal(friend.name()) : Component.translatable("osmosis.chat.former_member");
     }
 
     private static String formatTime(long time) {
@@ -72,22 +82,6 @@ final class ChatMessageList extends ContainerObjectSelectionList<ChatMessageList
     }
 
     abstract static class Entry extends ContainerObjectSelectionList.Entry<Entry> {
-    }
-
-    private final class TextEntry extends Entry {
-        private final Component text;
-
-        private TextEntry(Component text) {
-            this.text = text;
-        }
-
-        @Override
-        public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
-            graphics.centeredText(ChatMessageList.this.minecraft.font, this.text,
-                    this.getContentX() + this.getContentWidth() / 2,
-                    this.getContentY() + (this.getContentHeight() - 9) / 2, MUTED_COLOR);
-        }
-
         @Override
         public List<? extends GuiEventListener> children() {
             return List.of();
@@ -99,19 +93,34 @@ final class ChatMessageList extends ContainerObjectSelectionList<ChatMessageList
         }
     }
 
+    private final class TextEntry extends Entry {
+        private final Component text;
+
+        private TextEntry(Component text) {
+            this.text = text;
+        }
+
+        @Override
+        public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
+            graphics.centeredText(MessageList.this.minecraft.font, this.text,
+                    this.getContentX() + this.getContentWidth() / 2,
+                    this.getContentY() + (this.getContentHeight() - 8) / 2, MUTED_COLOR);
+        }
+    }
+
     private final class LoadOlderEntry extends Entry {
         private final Button button;
 
         private LoadOlderEntry(boolean loading) {
             this.button = Button.builder(Component.translatable("osmosis.chat.load_older"),
-                    button -> ChatMessageList.this.loadOlder.run()).width(160).build();
+                    button -> MessageList.this.loadOlder.run()).width(140).build();
             this.button.active = !loading;
         }
 
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             this.button.setPosition(this.getContentX() + (this.getContentWidth() - this.button.getWidth()) / 2,
-                    this.getContentY() + (this.getContentHeight() - this.button.getHeight()) / 2);
+                    this.getContentY() + 2);
             this.button.extractRenderState(graphics, mouseX, mouseY, a);
         }
 
@@ -126,47 +135,61 @@ final class ChatMessageList extends ContainerObjectSelectionList<ChatMessageList
         }
     }
 
-    private final class MessageEntry extends Entry {
-        private final ChatMessage message;
-        private final Component sender;
+    private final class BubbleEntry extends Entry {
+        private final boolean outgoing;
+        private final @Nullable Component sender;
         private final Component time;
         private final List<FormattedCharSequence> lines;
+        private final int textColor;
+        private final int bubbleWidth;
 
-        private MessageEntry(ChatMessage message, int textWidth) {
-            this.message = message;
-            this.sender = message.outgoing() ? Component.translatable("osmosis.chat.you")
-                    : Component.literal(ChatMessageList.this.friend.name());
+        private BubbleEntry(ChatMessage message, @Nullable Component sender, int maxWidth) {
+            Font font = MessageList.this.minecraft.font;
+            this.outgoing = message.outgoing();
+            this.sender = sender;
             this.time = Component.literal(formatTime(message.time()));
             Component text = message.text() != null ? Component.literal(message.text())
                     : Component.translatable("osmosis.chat.undecryptable").withStyle(style -> style.withItalic(true));
-            this.lines = ChatMessageList.this.minecraft.font.split(text, textWidth);
+            this.textColor = message.text() != null ? TEXT_COLOR : MUTED_COLOR;
+            this.lines = font.split(text, maxWidth - 2 * BUBBLE_PADDING);
+            int width = font.width(this.time);
+            for (FormattedCharSequence line : this.lines) {
+                width = Math.max(width, font.width(line));
+            }
+            if (sender != null) {
+                width = Math.max(width, font.width(sender));
+            }
+            this.bubbleWidth = width + 2 * BUBBLE_PADDING;
+        }
+
+        private int bubbleHeight() {
+            int lines = this.lines.size() + 1 + (this.sender != null ? 1 : 0);
+            return lines * LINE_HEIGHT + 2 * BUBBLE_PADDING - 2;
         }
 
         private int height() {
-            return 14 + this.lines.size() * LINE_HEIGHT;
+            return this.bubbleHeight() + 4;
         }
 
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
-            Font font = ChatMessageList.this.minecraft.font;
-            int x = this.getContentX() + 4;
+            Font font = MessageList.this.minecraft.font;
+            int x = this.outgoing ? this.getContentRight() - this.bubbleWidth - 2 : this.getContentX() + 2;
             int y = this.getContentY() + 2;
-            graphics.text(font, this.sender, x, y, this.message.outgoing() ? OWN_NAME_COLOR : FRIEND_NAME_COLOR);
-            graphics.text(font, this.time, this.getContentRight() - 4 - font.width(this.time), y, MUTED_COLOR);
-            int color = this.message.text() != null ? TEXT_COLOR : MUTED_COLOR;
-            for (int i = 0; i < this.lines.size(); i++) {
-                graphics.text(font, this.lines.get(i), x, y + 11 + i * LINE_HEIGHT, color);
+            Sprites.draw(graphics, this.outgoing ? Sprites.BUBBLE_OUTGOING : Sprites.BUBBLE_INCOMING, x, y,
+                    this.bubbleWidth, this.bubbleHeight());
+            int textX = x + BUBBLE_PADDING;
+            int textY = y + BUBBLE_PADDING;
+            if (this.sender != null) {
+                graphics.text(font, this.sender, textX, textY, SENDER_COLOR);
+                textY += LINE_HEIGHT;
             }
-        }
-
-        @Override
-        public List<? extends GuiEventListener> children() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends NarratableEntry> narratables() {
-            return List.of();
+            for (FormattedCharSequence line : this.lines) {
+                graphics.text(font, line, textX, textY, this.textColor);
+                textY += LINE_HEIGHT;
+            }
+            graphics.text(font, this.time, x + this.bubbleWidth - BUBBLE_PADDING - font.width(this.time), textY,
+                    MUTED_COLOR);
         }
     }
 }

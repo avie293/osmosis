@@ -31,7 +31,7 @@ public final class OsmosisButton extends SpriteIconButton.CenteredIcon {
 
     public OsmosisButton(Screen parent) {
         super(SIZE, SIZE, MESSAGE, 15, 15, 0, 0, SPRITES,
-                button -> Minecraft.getInstance().gui.setScreen(new FriendsScreen(parent)), MESSAGE, null, false);
+                button -> Minecraft.getInstance().gui.setScreen(new OsmosisScreen(parent)), MESSAGE, null, false);
     }
 
     @Override
