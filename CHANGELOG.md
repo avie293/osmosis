@@ -17,5 +17,9 @@
 - Added rejoining a friend's world you were invited to before whenever they host it again
 - Added a Friends' worlds section to the multiplayer server list
 
+- Added announcements from the server, shown as a pinned chat and as notifications
+- Added search and when friends were last online
+
 ### Changed
-- Changed the friends screen to a sidebar with friends, groups and requests next to the open chat
+- Changed the friends screen to a social screen with a chat tab, listing every chat with a preview next to the open
+  one, and a friends tab with friends, requests and blocked players side by side
