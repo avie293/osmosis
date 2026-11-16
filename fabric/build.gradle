@@ -23,6 +23,8 @@ loom {
             runDir('runs/client')
             // A fixed name keeps the offline UUID, and with it friends on a local Osmosis server, between runs.
             programArgs('--username', 'DevFabric')
+            // Development accounts cannot pass the Mojang check, so hosted worlds skip it here.
+            property('osmosis.offlineHosting', 'true')
         }
         server {
             server()

@@ -13,6 +13,8 @@ minecraft {
             workingDir = layout.projectDirectory.dir('runs/client')
             // A fixed name keeps the offline UUID, and with it friends on a local Osmosis server, between runs.
             args '--username', 'DevForge'
+            // Development accounts cannot pass the Mojang check, so hosted worlds skip it here.
+            systemProperty 'osmosis.offlineHosting', 'true'
         }
         register('server') {
             workingDir = layout.projectDirectory.dir('runs/server')

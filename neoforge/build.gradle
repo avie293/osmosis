@@ -21,6 +21,8 @@ neoForge {
             gameDirectory = this.mkdir(this.file('runs/client'))
             // A fixed name keeps the offline UUID, and with it friends on a local Osmosis server, between runs.
             programArguments.addAll('--username', 'DevNeo')
+            // Development accounts cannot pass the Mojang check, so hosted worlds skip it here.
+            systemProperty 'osmosis.offlineHosting', 'true'
         }
         server {
             server()

@@ -25,6 +25,12 @@ import org.jspecify.annotations.Nullable;
  * in through a tunnel. Only touched on the render thread.
  */
 public final class WorldHost {
+    /**
+     * Set by the development run configurations only. Development accounts have no Mojang session, so a hosted world
+     * that verifies players would turn every one of them away.
+     */
+    private static final boolean OFFLINE_HOSTING = Boolean.getBoolean("osmosis.offlineHosting");
+
     private @Nullable String world;
     private int lanPort;
 
@@ -54,6 +60,9 @@ public final class WorldHost {
                 return;
             }
             this.lanPort = port;
+        }
+        if (OFFLINE_HOSTING) {
+            server.setUsesAuthentication(false);
         }
         this.world = server.getWorldData().getLevelName();
         OsmosisClient.connection().startHosting(this.world);
