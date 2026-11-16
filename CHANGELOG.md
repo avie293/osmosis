@@ -11,6 +11,8 @@
 - Added group chats of up to 10 members with a group owner who manages members and the name
 - Added blocking players and deleting a chat for yourself
 - Added a dropdown with actions for friends and groups, also opened by right-clicking them
+- Added hosting your singleplayer world for friends from the pause menu, inviting friends or whole groups and joining
+  worlds you were invited to (Fabric only for now)
 
 ### Changed
 - Changed the friends screen to a sidebar with friends, groups and requests next to the open chat
