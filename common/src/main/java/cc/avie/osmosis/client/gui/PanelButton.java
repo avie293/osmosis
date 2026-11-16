@@ -24,6 +24,7 @@ public final class PanelButton extends AbstractButton {
 
     private final @Nullable Identifier icon;
     private final Runnable onPress;
+    private boolean highlighted;
 
     private PanelButton(int x, int y, int width, int height, Component message, @Nullable Identifier icon,
                         Runnable onPress) {
@@ -45,6 +46,11 @@ public final class PanelButton extends AbstractButton {
         return button;
     }
 
+    /** Shows the button in the accent color, for toggles that are switched on. */
+    public void setHighlighted(boolean highlighted) {
+        this.highlighted = highlighted;
+    }
+
     @Override
     public void onPress(InputWithModifiers input) {
         this.onPress.run();
@@ -53,6 +59,7 @@ public final class PanelButton extends AbstractButton {
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         Identifier background = !this.active ? Sprites.BUTTON_DISABLED
+                : this.highlighted ? Sprites.BUTTON_ACCENT
                 : this.isHoveredOrFocused() ? Sprites.BUTTON_HOVERED : Sprites.BUTTON;
         Sprites.draw(graphics, background, this.getX(), this.getY(), this.getWidth(), this.getHeight());
         if (this.icon != null) {

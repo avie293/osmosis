@@ -56,7 +56,7 @@ public final class MenuPopup extends OsmosisPopup {
             MenuItem item = this.items.get(i);
             int y = this.top + 4 + i * ROW_HEIGHT;
             if (i == hovered) {
-                Sprites.draw(graphics, Sprites.HOVERED, this.left + 2, y, this.popupWidth - 4, ROW_HEIGHT);
+                Sprites.draw(graphics, Sprites.ROW_HOVERED, this.left + 2, y, this.popupWidth - 4, ROW_HEIGHT);
             }
             Sprites.draw(graphics, item.icon(), this.left + 6, y + (ROW_HEIGHT - ICON_SIZE) / 2, ICON_SIZE, ICON_SIZE);
             graphics.text(this.font, item.label(), this.left + 6 + ICON_SIZE + 6, y + 4, TEXT_COLOR);

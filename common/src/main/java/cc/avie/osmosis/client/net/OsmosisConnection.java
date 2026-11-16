@@ -3,6 +3,7 @@ package cc.avie.osmosis.client.net;
 import cc.avie.osmosis.Osmosis;
 import cc.avie.osmosis.client.OsmosisClient;
 import cc.avie.osmosis.client.OsmosisConfig;
+import cc.avie.osmosis.client.chat.Announcement;
 import cc.avie.osmosis.client.chat.ChatCrypto;
 import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.chat.ChatMessage;
@@ -12,7 +13,8 @@ import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.friend.FriendState;
 import cc.avie.osmosis.client.friend.GroupInfo;
-import cc.avie.osmosis.client.gui.OsmosisScreen;
+import cc.avie.osmosis.client.friend.GroupState;
+import cc.avie.osmosis.client.gui.SocialScreen;
 import cc.avie.osmosis.client.gui.OsmosisToast;
 import com.mojang.authlib.exceptions.AuthenticationException;
 import io.netty.bootstrap.Bootstrap;
@@ -37,9 +39,7 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -363,10 +363,11 @@ public final class OsmosisConnection {
 
     private void onMessage(ChatTarget target, ChatMessage message) {
         this.chats.add(target, message);
+        this.friends.setLastMessage(target, message);
         if (message.outgoing()) {
             return;
         }
-        if (OsmosisScreen.isViewing(target)) {
+        if (SocialScreen.isViewing(target)) {
             this.markRead(target);
             return;
         }
@@ -380,10 +381,10 @@ public final class OsmosisConnection {
         if (target.isGroup()) {
             GroupInfo group = this.friends.group(target.group());
             if (group != null) {
-                OsmosisToast.show(Component.literal(group.name()), OsmosisScreen.preview(message, group), null);
+                OsmosisToast.show(Component.literal(group.name()), SocialScreen.preview(message, group), null);
             }
         } else if (sender != null) {
-            OsmosisToast.show(Component.literal(sender.name()), OsmosisScreen.preview(message, null), sender.id());
+            OsmosisToast.show(Component.literal(sender.name()), SocialScreen.preview(message, null), sender.id());
         }
     }
 
@@ -463,11 +464,10 @@ public final class OsmosisConnection {
                     List<FriendProfile> incoming = Packets.readProfiles(buf);
                     List<FriendProfile> outgoing = Packets.readProfiles(buf);
                     List<FriendProfile> blocked = Packets.readProfiles(buf);
-                    Map<GroupInfo, Integer> groups = new LinkedHashMap<>();
                     int groupCount = buf.readVarInt();
+                    List<GroupState> groups = new ArrayList<>(groupCount);
                     for (int i = 0; i < groupCount; i++) {
-                        GroupInfo group = this.readGroup(buf);
-                        groups.put(group, buf.readVarInt());
+                        groups.add(this.readGroup(buf));
                     }
                     connection.failedAttempts = 0;
                     connection.onMainThread(() -> {
@@ -481,7 +481,7 @@ public final class OsmosisConnection {
                 }
                 case Packets.FRIEND_ADDED -> {
                     FriendState friend = this.readFriend(buf);
-                    connection.onMainThread(() -> friends.addFriend(friend.profile(), friend.online()));
+                    connection.onMainThread(() -> friends.addFriend(friend));
                 }
                 case Packets.FRIEND_REMOVED -> {
                     UUID id = buf.readUUID();
@@ -505,7 +505,8 @@ public final class OsmosisConnection {
                 case Packets.PRESENCE -> {
                     UUID id = buf.readUUID();
                     boolean online = buf.readBoolean();
-                    connection.onMainThread(() -> friends.setOnline(id, online));
+                    long lastSeen = buf.readLong();
+                    connection.onMainThread(() -> friends.setOnline(id, online, lastSeen));
                 }
                 case Packets.ERROR -> {
                     Component message = Component.translatable(Packets.errorKey(buf.readUnsignedByte()));
@@ -541,9 +542,8 @@ public final class OsmosisConnection {
                     connection.onMainThread(() -> friends.removeBlocked(id));
                 }
                 case Packets.GROUP_UPDATED -> {
-                    GroupInfo group = this.readGroup(buf);
-                    int unread = buf.readVarInt();
-                    connection.onMainThread(() -> friends.putGroup(group, unread));
+                    GroupState group = this.readGroup(buf);
+                    connection.onMainThread(() -> friends.putGroup(group));
                 }
                 case Packets.GROUP_REMOVED -> {
                     long id = buf.readLong();
@@ -586,6 +586,14 @@ public final class OsmosisConnection {
                     int port = buf.readUnsignedShort();
                     connection.onMainThread(() -> OsmosisClient.host().onGuestJoining(guest, ticket, port));
                 }
+                case Packets.ANNOUNCEMENTS -> {
+                    int count = buf.readVarInt();
+                    List<Announcement> announcements = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) {
+                        announcements.add(new Announcement(buf.readLong(), buf.readUtf(Packets.MAX_ANNOUNCEMENT_LENGTH)));
+                    }
+                    connection.onMainThread(() -> friends.addAnnouncements(announcements));
+                }
                 default -> throw new DecoderException("Unknown Osmosis packet");
             }
         }
@@ -600,11 +608,14 @@ public final class OsmosisConnection {
             FriendProfile profile = Packets.readProfile(buf);
             boolean online = buf.readBoolean();
             OsmosisConnection.this.crypto().setFriendKey(profile.id(), buf.readByteArray(Packets.MAX_KEY_LENGTH));
-            return new FriendState(profile, online, buf.readVarInt());
+            int unread = buf.readVarInt();
+            long lastSeen = buf.readLong();
+            ChatMessage lastMessage = buf.readBoolean() ? this.readDirectMessage(buf, profile.id()) : null;
+            return new FriendState(profile, online, unread, lastSeen, lastMessage);
         }
 
-        /** Reads a group without its unread count, storing the member keys on the way. */
-        private GroupInfo readGroup(FriendlyByteBuf buf) {
+        /** Reads a group, storing the member keys on the way. */
+        private GroupState readGroup(FriendlyByteBuf buf) {
             long id = buf.readLong();
             String name = buf.readUtf(Packets.MAX_GROUP_NAME_LENGTH);
             UUID owner = buf.readUUID();
@@ -615,7 +626,9 @@ public final class OsmosisConnection {
                 OsmosisConnection.this.crypto().setFriendKey(member.id(), buf.readByteArray(Packets.MAX_KEY_LENGTH));
                 members.add(member);
             }
-            return new GroupInfo(id, name, owner, List.copyOf(members));
+            int unread = buf.readVarInt();
+            ChatMessage lastMessage = buf.readBoolean() ? this.readGroupMessage(buf, id) : null;
+            return new GroupState(new GroupInfo(id, name, owner, List.copyOf(members)), unread, lastMessage);
         }
 
         /** Decrypts right here on the network thread, so the render thread never waits for it. */

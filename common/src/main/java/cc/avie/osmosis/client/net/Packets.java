@@ -12,10 +12,11 @@ import net.minecraft.network.FriendlyByteBuf;
  * documents the framing.
  */
 final class Packets {
-    static final int PROTOCOL_VERSION = 5;
+    static final int PROTOCOL_VERSION = 6;
     static final int MAX_NAME_LENGTH = 16;
     static final int MAX_GROUP_NAME_LENGTH = 24;
     static final int MAX_WORLD_NAME_LENGTH = 64;
+    static final int MAX_ANNOUNCEMENT_LENGTH = 1000;
     static final int MAX_SERVER_ID_LENGTH = 64;
     static final int MAX_KEY_LENGTH = 64;
     static final int MAX_CIPHERTEXT_LENGTH = 4096;
@@ -72,6 +73,7 @@ final class Packets {
     static final int HOSTING = 20;
     static final int JOIN_TICKET = 21;
     static final int GUEST_JOINING = 22;
+    static final int ANNOUNCEMENTS = 23;
 
     /** Indexed by the server's {@code DisconnectReason}. */
     private static final ConnectionStatus[] DISCONNECT_REASONS = {

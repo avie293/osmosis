@@ -1,6 +1,8 @@
 package cc.avie.osmosis.client.friend;
 
 import cc.avie.osmosis.client.OsmosisClient;
+import cc.avie.osmosis.client.chat.Announcement;
+import cc.avie.osmosis.client.chat.ChatMessage;
 import cc.avie.osmosis.client.chat.ChatTarget;
 import cc.avie.osmosis.client.gui.OsmosisToast;
 import java.util.ArrayList;
@@ -30,6 +32,10 @@ public final class FriendList {
     private final Map<UUID, HostedWorld> hostedWorlds = new HashMap<>();
     private @Nullable UUID lastInviteHost;
     private final Set<UUID> online = new HashSet<>();
+    private final Map<UUID, Long> lastSeen = new HashMap<>();
+    private final Map<ChatTarget, ChatMessage> lastMessages = new HashMap<>();
+    private final List<Announcement> announcements = new ArrayList<>();
+    private boolean announcementsLoaded;
     private final Map<ChatTarget, Integer> unread = new HashMap<>();
     private final List<Runnable> listeners = new ArrayList<>();
     private ConnectionStatus status = ConnectionStatus.CONNECTING;
@@ -82,6 +88,47 @@ public final class FriendList {
 
     public boolean isOnline(UUID id) {
         return this.online.contains(id);
+    }
+
+    /**
+     * @return when this friend was last online, in milliseconds since the epoch, 0 if unknown
+     */
+    public long lastSeen(UUID id) {
+        return this.lastSeen.getOrDefault(id, 0L);
+    }
+
+    /**
+     * @return the newest message of a chat, for previews, or {@code null} if there is none
+     */
+    public @Nullable ChatMessage lastMessage(ChatTarget target) {
+        return this.lastMessages.get(target);
+    }
+
+    public void setLastMessage(ChatTarget target, @Nullable ChatMessage message) {
+        if (message == null) {
+            this.lastMessages.remove(target);
+        } else {
+            this.lastMessages.put(target, message);
+        }
+        this.changed();
+    }
+
+    public List<Announcement> announcements() {
+        return Collections.unmodifiableList(this.announcements);
+    }
+
+    /** The first batch after login is the stored history; later ones are new and get a notification. */
+    public void addAnnouncements(List<Announcement> announcements) {
+        if (this.announcementsLoaded) {
+            for (Announcement announcement : announcements) {
+                OsmosisToast.show(Component.translatable("osmosis.announcements"), Component.literal(
+                        announcement.text().length() > 40 ? announcement.text().substring(0, 40) + "..."
+                                : announcement.text()), null);
+            }
+        }
+        this.announcements.addAll(announcements);
+        this.announcementsLoaded = true;
+        this.changed();
     }
 
     /**
@@ -188,10 +235,14 @@ public final class FriendList {
     }
 
     public void reset(FriendProfile self, List<FriendState> friends, List<FriendProfile> incoming,
-                      List<FriendProfile> outgoing, List<FriendProfile> blocked, Map<GroupInfo, Integer> groups) {
+                      List<FriendProfile> outgoing, List<FriendProfile> blocked, List<GroupState> groups) {
         this.self = self;
         this.hostedWorlds.clear();
         this.lastInviteHost = null;
+        this.lastSeen.clear();
+        this.lastMessages.clear();
+        this.announcements.clear();
+        this.announcementsLoaded = false;
         this.friends.clear();
         this.online.clear();
         this.unread.clear();
@@ -201,16 +252,23 @@ public final class FriendList {
             if (friend.online()) {
                 this.online.add(id);
             }
+            this.lastSeen.put(id, friend.lastSeen());
             this.setUnread(ChatTarget.direct(id), friend.unread());
+            if (friend.lastMessage() != null) {
+                this.lastMessages.put(ChatTarget.direct(id), friend.lastMessage());
+            }
         }
         replace(this.incoming, incoming);
         replace(this.outgoing, outgoing);
         replace(this.blocked, blocked);
         this.groups.clear();
-        groups.forEach((group, unread) -> {
-            this.groups.put(group.id(), group);
-            this.setUnread(ChatTarget.group(group.id()), unread);
-        });
+        for (GroupState state : groups) {
+            this.groups.put(state.group().id(), state.group());
+            this.setUnread(ChatTarget.group(state.group().id()), state.unread());
+            if (state.lastMessage() != null) {
+                this.lastMessages.put(ChatTarget.group(state.group().id()), state.lastMessage());
+            }
+        }
         this.status = ConnectionStatus.CONNECTED;
         this.changed();
     }
@@ -241,7 +299,10 @@ public final class FriendList {
         }
     }
 
-    public void addFriend(FriendProfile profile, boolean isOnline) {
+    public void addFriend(FriendState friend) {
+        FriendProfile profile = friend.profile();
+        boolean isOnline = friend.online();
+        this.lastSeen.put(profile.id(), friend.lastSeen());
         if (this.outgoing.remove(profile.id()) != null) {
             OsmosisToast.show(Component.translatable("osmosis.toast.accepted.title"),
                     Component.translatable("osmosis.toast.accepted", profile.name()), profile.id());
@@ -256,6 +317,7 @@ public final class FriendList {
 
     public void removeFriend(UUID id) {
         this.online.remove(id);
+        this.lastMessages.remove(ChatTarget.direct(id));
         this.unread.remove(ChatTarget.direct(id));
         if (this.friends.remove(id) != null) {
             this.changed();
@@ -293,24 +355,30 @@ public final class FriendList {
         }
     }
 
-    public void putGroup(GroupInfo group, int unread) {
+    public void putGroup(GroupState state) {
+        GroupInfo group = state.group();
         this.groups.put(group.id(), group);
-        this.setUnread(ChatTarget.group(group.id()), unread);
+        this.setUnread(ChatTarget.group(group.id()), state.unread());
+        if (state.lastMessage() != null) {
+            this.lastMessages.put(ChatTarget.group(group.id()), state.lastMessage());
+        }
         this.changed();
     }
 
     public void removeGroup(long id) {
         this.unread.remove(ChatTarget.group(id));
+        this.lastMessages.remove(ChatTarget.group(id));
         if (this.groups.remove(id) != null) {
             this.changed();
         }
     }
 
-    public void setOnline(UUID id, boolean isOnline) {
+    public void setOnline(UUID id, boolean isOnline, long lastSeen) {
         FriendProfile friend = this.friends.get(id);
         if (friend == null) {
             return;
         }
+        this.lastSeen.put(id, lastSeen);
         boolean changed = isOnline ? this.online.add(id) : this.online.remove(id);
         if (changed && isOnline && this.onlineToasts) {
             OsmosisToast.show(Component.literal(friend.name()), Component.translatable("osmosis.toast.online"), id);

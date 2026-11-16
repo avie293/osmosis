@@ -4,7 +4,7 @@ import cc.avie.osmosis.client.chat.ChatCrypto;
 import cc.avie.osmosis.client.chat.ChatLog;
 import cc.avie.osmosis.client.friend.FriendList;
 import cc.avie.osmosis.client.friend.HostedWorld;
-import cc.avie.osmosis.client.gui.OsmosisScreen;
+import cc.avie.osmosis.client.gui.SocialScreen;
 import cc.avie.osmosis.client.host.WorldHost;
 import cc.avie.osmosis.client.net.OsmosisConnection;
 import cc.avie.osmosis.platform.Services;
@@ -53,7 +53,7 @@ public final class OsmosisClient {
         HOST.tick();
         while (OPEN_KEY.consumeClick()) {
             if (minecraft.gui.screen() == null) {
-                minecraft.gui.setScreen(new OsmosisScreen(null));
+                minecraft.gui.setScreen(new SocialScreen(null));
             }
         }
         while (JOIN_KEY.consumeClick()) {

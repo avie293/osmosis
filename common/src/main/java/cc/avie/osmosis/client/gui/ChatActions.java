@@ -30,7 +30,7 @@ final class ChatActions {
     private ChatActions() {
     }
 
-    static List<MenuItem> forTarget(OsmosisScreen screen, ChatTarget target) {
+    static List<MenuItem> forTarget(SocialScreen screen, ChatTarget target) {
         List<MenuItem> items = new ArrayList<>();
         FriendList friends = OsmosisClient.friends();
         if (target.isGroup()) {
@@ -67,7 +67,7 @@ final class ChatActions {
         }
     }
 
-    private static void addFriendActions(OsmosisScreen screen, FriendProfile friend, List<MenuItem> items) {
+    private static void addFriendActions(SocialScreen screen, FriendProfile friend, List<MenuItem> items) {
         OsmosisConnection connection = OsmosisClient.connection();
         items.add(item("remove", "osmosis.menu.remove", () -> confirm(screen,
                 Component.translatable("osmosis.confirm.remove", friend.name()), "osmosis.menu.remove",
@@ -77,7 +77,7 @@ final class ChatActions {
                 () -> connection.block(friend.id()))));
     }
 
-    private static void addGroupActions(OsmosisScreen screen, GroupInfo group, List<MenuItem> items) {
+    private static void addGroupActions(SocialScreen screen, GroupInfo group, List<MenuItem> items) {
         OsmosisConnection connection = OsmosisClient.connection();
         FriendProfile self = OsmosisClient.friends().self();
         boolean owner = self != null && group.isOwner(self.id());
@@ -93,7 +93,7 @@ final class ChatActions {
                 () -> connection.leaveGroup(group.id()))));
     }
 
-    private static void openAddMembers(OsmosisScreen screen, GroupInfo group) {
+    private static void openAddMembers(SocialScreen screen, GroupInfo group) {
         Set<UUID> members = new HashSet<>();
         group.members().forEach(member -> members.add(member.id()));
         List<FriendProfile> candidates = MemberPickerPopup.candidates(OsmosisClient.friends().friends(), members);
@@ -102,17 +102,17 @@ final class ChatActions {
                 (name, picked) -> picked.forEach(id -> OsmosisClient.connection().addGroupMember(group.id(), id))));
     }
 
-    static void openCreateGroup(OsmosisScreen screen) {
+    static void openCreateGroup(SocialScreen screen) {
         List<FriendProfile> candidates = MemberPickerPopup.candidates(OsmosisClient.friends().friends(), Set.of());
         open(new MemberPickerPopup(screen, Component.translatable("osmosis.group.create"), candidates,
                 MAX_GROUP_MEMBERS - 1, true, (name, picked) -> OsmosisClient.connection().createGroup(name, picked)));
     }
 
-    private static void confirm(OsmosisScreen screen, String messageKey, String confirmKey, Runnable action) {
+    private static void confirm(SocialScreen screen, String messageKey, String confirmKey, Runnable action) {
         confirm(screen, Component.translatable(messageKey), confirmKey, action);
     }
 
-    private static void confirm(OsmosisScreen screen, Component message, String confirmKey, Runnable action) {
+    private static void confirm(SocialScreen screen, Component message, String confirmKey, Runnable action) {
         Component label = Component.translatable(confirmKey);
         open(new ConfirmPopup(screen, label, message, label, action));
     }
