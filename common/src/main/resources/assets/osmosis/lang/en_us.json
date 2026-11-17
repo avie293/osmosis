@@ -134,5 +134,7 @@
   "osmosis.world.name": "Name",
   "osmosis.world.game_mode": "Game Mode",
   "osmosis.world.difficulty": "Difficulty",
-  "osmosis.world.cheats": "Cheats"
+  "osmosis.world.cheats": "Cheats",
+  "osmosis.world.game_rules": "Game Rules",
+  "osmosis.world.game_rules_closed": "Start the world to change its game rules"
 }

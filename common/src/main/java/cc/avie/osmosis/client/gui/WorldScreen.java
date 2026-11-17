@@ -11,6 +11,7 @@ import cc.avie.osmosis.client.host.WorldInfo;
 import cc.avie.osmosis.client.host.WorldSettings;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
@@ -27,6 +28,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.gamerules.GameRuleCategory;
 import net.minecraft.world.level.storage.LevelStorageSource;
 import org.jspecify.annotations.Nullable;
 
@@ -46,7 +48,8 @@ public final class WorldScreen extends OsmosisPopup {
 
     private enum Tab {
         MEMBERS("osmosis.world.members"),
-        GENERAL("osmosis.world.general");
+        GENERAL("osmosis.world.general"),
+        GAME_RULES("osmosis.world.game_rules");
 
         private final Component label;
 
@@ -60,6 +63,8 @@ public final class WorldScreen extends OsmosisPopup {
     private Tab tab = Tab.MEMBERS;
     private WorldSettings settings;
     private String name;
+    private final Set<GameRuleCategory> expandedCategories = new HashSet<>();
+    private String ruleFilter = "";
 
     public WorldScreen(Screen parent, WorldInfo world) {
         super(parent, Component.empty());
@@ -120,10 +125,10 @@ public final class WorldScreen extends OsmosisPopup {
             navY += 16;
         }
 
-        if (this.tab == Tab.MEMBERS) {
-            this.initMembers();
-        } else {
-            this.initGeneral();
+        switch (this.tab) {
+            case MEMBERS -> this.initMembers();
+            case GENERAL -> this.initGeneral();
+            case GAME_RULES -> this.initGameRules();
         }
     }
 
@@ -206,6 +211,28 @@ public final class WorldScreen extends OsmosisPopup {
             cheats.setStyle(PanelButton.Style.ACCENT);
         }
         this.addRenderableWidget(cheats);
+    }
+
+    /** Game rules live in the world's own data, so they can only be changed while it is open. */
+    private void initGameRules() {
+        IntegratedServer server = this.minecraft.getSingleplayerServer();
+        if (!this.world.loaded() || server == null) {
+            return;
+        }
+        int left = this.contentLeft();
+        int top = this.contentTop();
+        EditBox search = new EditBox(this.font, left, top, this.contentRight() - left, 18,
+                Component.translatable("osmosis.search"));
+        search.setHint(Component.translatable("osmosis.search"));
+        search.setValue(this.ruleFilter);
+        this.addRenderableWidget(search);
+        GameRuleList rules = this.addRenderableWidget(new GameRuleList(this.minecraft, left - 2, top + 24,
+                this.contentRight() - left + 4, this.contentBottom() - top - 24, server, this.expandedCategories));
+        search.setResponder(value -> {
+            this.ruleFilter = value.strip().toLowerCase(Locale.ROOT);
+            rules.rebuild(this.ruleFilter);
+        });
+        rules.rebuild(this.ruleFilter);
     }
 
     private PanelButton cycleButton(int x, int rowY, Component label, Runnable onPress) {
@@ -293,6 +320,12 @@ public final class WorldScreen extends OsmosisPopup {
 
         if (this.tab == Tab.MEMBERS) {
             this.sectionTitle(graphics, "osmosis.world.members_list", this.contentTop());
+        } else if (this.tab == Tab.GAME_RULES) {
+            if (!this.world.loaded()) {
+                graphics.centeredText(this.font, Component.translatable("osmosis.world.game_rules_closed"),
+                        (this.contentLeft() + this.contentRight()) / 2, (this.contentTop() + this.contentBottom()) / 2,
+                        SocialScreen.MUTED_COLOR);
+            }
         } else {
             String[] labels = {"osmosis.world.name", "osmosis.world.game_mode", "osmosis.world.difficulty",
                     "osmosis.world.cheats"};
