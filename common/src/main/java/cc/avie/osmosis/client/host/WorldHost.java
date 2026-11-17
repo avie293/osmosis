@@ -47,6 +47,7 @@ public final class WorldHost {
     private int lanPort;
     /** Settings of a world being loaded to be hosted once it is ready. */
     private @Nullable WorldSettings pendingSettings;
+    private final PackSharing packs = new PackSharing();
 
     public boolean isHosting() {
         return this.world != null;
@@ -54,6 +55,10 @@ public final class WorldHost {
 
     public @Nullable String world() {
         return this.world;
+    }
+
+    public PackSharing packs() {
+        return this.packs;
     }
 
     public boolean canHost() {
@@ -96,9 +101,11 @@ public final class WorldHost {
         if (OFFLINE_HOSTING) {
             server.setUsesAuthentication(false);
         }
-        this.worldId = worldId(server.getWorldPath(LevelResource.ROOT));
+        Path folder = server.getWorldPath(LevelResource.ROOT);
+        this.worldId = worldId(folder);
         this.world = server.getWorldData().getLevelName();
         OsmosisClient.connection().startHosting(this.worldId, this.world);
+        this.packs.announce(folder);
     }
 
     /**
@@ -143,6 +150,7 @@ public final class WorldHost {
         if (this.world != null) {
             this.world = null;
             this.worldId = null;
+            this.packs.stopHosting();
             OsmosisClient.connection().stopHosting();
         }
     }
@@ -159,6 +167,7 @@ public final class WorldHost {
         if (this.world != null && server == null) {
             this.stop();
         }
+        this.packs.tick();
     }
 
     public void onGuestJoining(FriendProfile guest, byte[] ticket, int tunnelPort) {
@@ -183,6 +192,7 @@ public final class WorldHost {
     public void onJoinTicket(UUID host, byte[] ticket, int tunnelPort) {
         HostedWorld world = OsmosisClient.friends().hostedWorld(host);
         String name = world != null ? world.world() : "Osmosis";
+        this.packs.reset();
         OsmosisClient.connection().openGuestTunnel(ticket, tunnelPort).whenCompleteAsync((port, error) -> {
             if (error != null) {
                 Osmosis.LOGGER.warn("Could not open the Osmosis tunnel", error);
@@ -192,8 +202,9 @@ public final class WorldHost {
             Minecraft minecraft = Minecraft.getInstance();
             Screen parent = minecraft.gui.screen() != null ? minecraft.gui.screen() : new TitleScreen();
             String address = "127.0.0.1:" + port;
-            ConnectScreen.startConnecting(parent, minecraft, ServerAddress.parseString(address),
-                    new ServerData(name, address, ServerData.Type.OTHER), false, null);
+            ServerData server = new ServerData(name, address, ServerData.Type.OTHER);
+            this.packs.joining(server);
+            ConnectScreen.startConnecting(parent, minecraft, ServerAddress.parseString(address), server, false, null);
         }, Minecraft.getInstance());
     }
 }

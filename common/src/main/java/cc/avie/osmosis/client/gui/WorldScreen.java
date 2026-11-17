@@ -6,10 +6,14 @@ import cc.avie.osmosis.client.friend.ConnectionStatus;
 import cc.avie.osmosis.client.friend.FriendProfile;
 import cc.avie.osmosis.client.gui.popup.MemberPickerPopup;
 import cc.avie.osmosis.client.gui.popup.OsmosisPopup;
+import cc.avie.osmosis.client.host.PackSharing;
 import cc.avie.osmosis.client.host.WorldHost;
 import cc.avie.osmosis.client.host.WorldInfo;
 import cc.avie.osmosis.client.host.WorldSettings;
+import com.mojang.blaze3d.Blaze3D;
+import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -49,7 +53,8 @@ public final class WorldScreen extends OsmosisPopup {
     private enum Tab {
         MEMBERS("osmosis.world.members"),
         GENERAL("osmosis.world.general"),
-        GAME_RULES("osmosis.world.game_rules");
+        GAME_RULES("osmosis.world.game_rules"),
+        PACKS("osmosis.world.packs");
 
         private final Component label;
 
@@ -65,6 +70,8 @@ public final class WorldScreen extends OsmosisPopup {
     private String name;
     private final Set<GameRuleCategory> expandedCategories = new HashSet<>();
     private String ruleFilter = "";
+    private @Nullable Set<String> sharedPacks;
+    private boolean noPacks;
 
     public WorldScreen(Screen parent, WorldInfo world) {
         super(parent, Component.empty());
@@ -129,6 +136,7 @@ public final class WorldScreen extends OsmosisPopup {
             case MEMBERS -> this.initMembers();
             case GENERAL -> this.initGeneral();
             case GAME_RULES -> this.initGameRules();
+            case PACKS -> this.initPacks();
         }
     }
 
@@ -166,7 +174,7 @@ public final class WorldScreen extends OsmosisPopup {
         this.addRenderableWidget(add);
 
         int listTop = this.contentTop() + 14;
-        MemberList list = this.addRenderableWidget(new MemberList(this.minecraft, left - 2, listTop,
+        RowList<MemberRow> list = this.addRenderableWidget(new RowList<>(this.minecraft, left - 2, listTop,
                 right - left + 4, buttonY - 6 - listTop));
         FriendProfile self = OsmosisClient.friends().self();
         if (self != null) {
@@ -233,6 +241,43 @@ public final class WorldScreen extends OsmosisPopup {
             rules.rebuild(this.ruleFilter);
         });
         rules.rebuild(this.ruleFilter);
+    }
+
+    private Path worldFolder() {
+        return this.minecraft.getLevelSource().getLevelPath(this.world.levelId());
+    }
+
+    private void initPacks() {
+        if (this.sharedPacks == null) {
+            this.sharedPacks = PackSharing.sharedPacks(this.worldFolder());
+        }
+        int left = this.contentLeft();
+        int right = this.contentRight();
+        int buttonY = this.contentBottom() - 20;
+        this.addRenderableWidget(PanelButton.text(left, buttonY, right - left, 20,
+                Component.translatable("osmosis.world.open_pack_folder"),
+                () -> Blaze3D.openPath(this.minecraft.getResourcePackDirectory())));
+        int listTop = this.contentTop() + 14;
+        RowList<PackRow> list = this.addRenderableWidget(new RowList<>(this.minecraft, left - 2, listTop,
+                right - left + 4, buttonY - 6 - listTop));
+        List<Path> packs = PackSharing.availablePacks();
+        this.noPacks = packs.isEmpty();
+        for (Path pack : packs) {
+            list.add(new PackRow(pack.getFileName().toString(), PackSharing.displayName(pack)));
+        }
+    }
+
+    private void toggleShared(String file) {
+        Set<String> shared = new LinkedHashSet<>(this.sharedPacks != null ? this.sharedPacks : Set.of());
+        if (!shared.remove(file)) {
+            if (!PackSharing.canShareMore(shared)) {
+                return;
+            }
+            shared.add(file);
+        }
+        this.sharedPacks = shared;
+        OsmosisClient.host().packs().setSharedPacks(this.worldFolder(), this.world.worldId(), shared);
+        this.rebuildWidgets();
     }
 
     private PanelButton cycleButton(int x, int rowY, Component label, Runnable onPress) {
@@ -320,6 +365,13 @@ public final class WorldScreen extends OsmosisPopup {
 
         if (this.tab == Tab.MEMBERS) {
             this.sectionTitle(graphics, "osmosis.world.members_list", this.contentTop());
+        } else if (this.tab == Tab.PACKS) {
+            this.sectionTitle(graphics, "osmosis.world.shared_packs", this.contentTop());
+            if (this.noPacks) {
+                graphics.centeredText(this.font, Component.translatable("osmosis.world.no_packs"),
+                        (this.contentLeft() + this.contentRight()) / 2, (this.contentTop() + this.contentBottom()) / 2,
+                        SocialScreen.MUTED_COLOR);
+            }
         } else if (this.tab == Tab.GAME_RULES) {
             if (!this.world.loaded()) {
                 graphics.centeredText(this.font, Component.translatable("osmosis.world.game_rules_closed"),
@@ -352,8 +404,8 @@ public final class WorldScreen extends OsmosisPopup {
         graphics.fill(lineX, y + 4, this.contentRight(), y + 5, 0xFF34343C);
     }
 
-    private static final class MemberList extends PanelList<MemberRow> {
-        private MemberList(Minecraft minecraft, int x, int y, int width, int height) {
+    private static final class RowList<E extends ContainerObjectSelectionList.Entry<E>> extends PanelList<E> {
+        private RowList(Minecraft minecraft, int x, int y, int width, int height) {
             super(minecraft, x, y, width, height, 24);
         }
 
@@ -362,7 +414,7 @@ public final class WorldScreen extends OsmosisPopup {
             return this.width - 4;
         }
 
-        private void add(MemberRow row) {
+        private void add(E row) {
             this.addEntry(row);
         }
     }
@@ -412,6 +464,44 @@ public final class WorldScreen extends OsmosisPopup {
         @Override
         public List<? extends NarratableEntry> narratables() {
             return this.removeButton != null ? List.of(this.removeButton) : List.of();
+        }
+    }
+
+    private final class PackRow extends ContainerObjectSelectionList.Entry<PackRow> {
+        private final Component name;
+        private final PanelButton toggle;
+
+        private PackRow(String file, String name) {
+            this.name = Component.literal(name);
+            Set<String> shared = WorldScreen.this.sharedPacks;
+            boolean on = shared != null && shared.contains(file);
+            this.toggle = PanelButton.text(0, 0, 60, 16, Component.translatable(on ? "options.on" : "options.off"),
+                    () -> WorldScreen.this.toggleShared(file));
+            this.toggle.setStyle(on ? PanelButton.Style.ACCENT : PanelButton.Style.NORMAL);
+            this.toggle.active = on || shared == null || PackSharing.canShareMore(shared);
+        }
+
+        @Override
+        public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
+            Font font = WorldScreen.this.font;
+            int x = this.getContentX();
+            int y = this.getContentY();
+            Sprites.draw(graphics, Sprites.ROW, x, y, this.getContentWidth(), this.getContentHeight());
+            int toggleX = this.getContentRight() - 4 - 60;
+            graphics.text(font, font.split(this.name, toggleX - 6 - x - 8).getFirst(), x + 8,
+                    y + (this.getContentHeight() - 8) / 2, SocialScreen.TEXT_COLOR);
+            this.toggle.setPosition(toggleX, y + (this.getContentHeight() - 16) / 2);
+            this.toggle.extractRenderState(graphics, mouseX, mouseY, a);
+        }
+
+        @Override
+        public List<? extends GuiEventListener> children() {
+            return List.of(this.toggle);
+        }
+
+        @Override
+        public List<? extends NarratableEntry> narratables() {
+            return List.of(this.toggle);
         }
     }
 }

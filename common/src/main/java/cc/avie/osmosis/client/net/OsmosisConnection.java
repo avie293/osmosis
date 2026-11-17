@@ -16,6 +16,7 @@ import cc.avie.osmosis.client.friend.GroupInfo;
 import cc.avie.osmosis.client.friend.GroupState;
 import cc.avie.osmosis.client.gui.SocialScreen;
 import cc.avie.osmosis.client.gui.OsmosisToast;
+import cc.avie.osmosis.client.host.SharedPack;
 import com.mojang.authlib.exceptions.AuthenticationException;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -37,6 +38,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -185,6 +187,39 @@ public final class OsmosisConnection {
         buf.writeUUID(world);
         buf.writeUUID(player);
         this.send(buf);
+    }
+
+    public void setHostPacks(List<SharedPack> packs) {
+        FriendlyByteBuf buf = Packets.create(Packets.SET_HOST_PACKS);
+        int count = Math.min(packs.size(), Packets.MAX_SHARED_PACKS);
+        buf.writeVarInt(count);
+        for (SharedPack pack : packs.subList(0, count)) {
+            buf.writeBytes(pack.hash());
+            String name = pack.name();
+            buf.writeUtf(name.length() > Packets.MAX_PACK_NAME_LENGTH
+                    ? name.substring(0, Packets.MAX_PACK_NAME_LENGTH) : name, Packets.MAX_PACK_NAME_LENGTH);
+            buf.writeLong(pack.size());
+        }
+        this.send(buf);
+    }
+
+    public void requestPack(UUID host, byte[] hash) {
+        FriendlyByteBuf buf = Packets.create(Packets.REQUEST_PACK);
+        buf.writeUUID(host);
+        buf.writeBytes(hash);
+        this.send(buf);
+    }
+
+    public CompletableFuture<Void> sendPack(byte[] ticket, int tunnelPort, Path pack) {
+        InetAddress relay = this.relayAddress();
+        return relay != null ? PackTransfer.send(relay, tunnelPort, ticket, pack)
+                : CompletableFuture.failedFuture(new IllegalStateException("Not connected to Osmosis"));
+    }
+
+    public CompletableFuture<Void> receivePack(byte[] ticket, int tunnelPort, Path target, SharedPack pack) {
+        InetAddress relay = this.relayAddress();
+        return relay != null ? PackTransfer.receive(relay, tunnelPort, ticket, target, pack.hash(), pack.size())
+                : CompletableFuture.failedFuture(new IllegalStateException("Not connected to Osmosis"));
     }
 
     /**
@@ -617,8 +652,41 @@ public final class OsmosisConnection {
                     List<FriendProfile> members = Packets.readProfiles(buf);
                     connection.onMainThread(() -> friends.setWorldMembers(world, members));
                 }
+                case Packets.HOST_PACKS -> {
+                    UUID host = buf.readUUID();
+                    int count = buf.readVarInt();
+                    if (count > Packets.MAX_SHARED_PACKS) {
+                        throw new DecoderException("Too many shared packs");
+                    }
+                    List<SharedPack> packs = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) {
+                        byte[] hash = readHash(buf);
+                        packs.add(new SharedPack(hash, buf.readUtf(Packets.MAX_PACK_NAME_LENGTH), buf.readLong()));
+                    }
+                    connection.onMainThread(() -> OsmosisClient.host().packs().onHostPacks(host, packs));
+                }
+                case Packets.PACK_UPLOAD -> {
+                    Packets.readProfile(buf);
+                    byte[] hash = readHash(buf);
+                    byte[] ticket = readTicket(buf);
+                    int port = buf.readUnsignedShort();
+                    connection.onMainThread(() -> OsmosisClient.host().packs().onUpload(hash, ticket, port));
+                }
+                case Packets.PACK_DOWNLOAD -> {
+                    buf.readUUID();
+                    byte[] hash = readHash(buf);
+                    byte[] ticket = readTicket(buf);
+                    int port = buf.readUnsignedShort();
+                    connection.onMainThread(() -> OsmosisClient.host().packs().onDownload(hash, ticket, port));
+                }
                 default -> throw new DecoderException("Unknown Osmosis packet");
             }
+        }
+
+        private static byte[] readHash(FriendlyByteBuf buf) {
+            byte[] hash = new byte[20];
+            buf.readBytes(hash);
+            return hash;
         }
 
         private static byte[] readTicket(FriendlyByteBuf buf) {

@@ -136,5 +136,9 @@
   "osmosis.world.difficulty": "Difficulty",
   "osmosis.world.cheats": "Cheats",
   "osmosis.world.game_rules": "Game Rules",
-  "osmosis.world.game_rules_closed": "Start the world to change its game rules"
+  "osmosis.world.game_rules_closed": "Start the world to change its game rules",
+  "osmosis.world.packs": "Packs",
+  "osmosis.world.shared_packs": "Shared Resource Packs",
+  "osmosis.world.no_packs": "Put zip resource packs into your resource pack folder to share them",
+  "osmosis.world.open_pack_folder": "Open Pack Folder"
 }
