@@ -21,6 +21,8 @@
 - Added search and when friends were last online
 - Added hosting from the title screen: pick a world or create one, then manage who may join and its game mode,
   difficulty and cheats in the world window before starting (Fabric only for now)
+- Added changing the game rules of the open world in the world window
+- Added sharing resource packs with the guests of a hosted world, picked per world from the resource pack folder
 
 ### Changed
 - Changed the friends screen to a social screen with a chat tab, listing every chat with a preview next to the open
