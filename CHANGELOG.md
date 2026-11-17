@@ -19,6 +19,8 @@
 
 - Added announcements from the server, shown as a pinned chat and as notifications
 - Added search and when friends were last online
+- Added hosting from the title screen: pick a world or create one, then manage who may join and its game mode,
+  difficulty and cheats in the world window before starting (Fabric only for now)
 
 ### Changed
 - Changed the friends screen to a social screen with a chat tab, listing every chat with a preview next to the open
