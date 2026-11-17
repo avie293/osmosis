@@ -168,7 +168,9 @@ public final class SocialScreen extends Screen {
         int iconX = right - 6 - ICON_BUTTON_SIZE;
         PanelButton searchButton = this.addRenderableWidget(PanelButton.icon(iconX, iconY, ICON_BUTTON_SIZE,
                 Sprites.sprite("social/search"), Component.translatable("osmosis.search"), this::toggleSearch));
-        searchButton.setHighlighted(this.searching);
+        if (this.searching) {
+            searchButton.setStyle(PanelButton.Style.ACCENT);
+        }
         iconX -= ICON_BUTTON_SIZE + 3;
         this.addRenderableWidget(PanelButton.icon(iconX, iconY, ICON_BUTTON_SIZE, Sprites.sprite("social/create_group"),
                 Component.translatable("osmosis.group.create"), () -> ChatActions.openCreateGroup(this)));
@@ -446,7 +448,8 @@ public final class SocialScreen extends Screen {
             int divider = left + this.listWidth();
             graphics.fill(divider, contentTop, divider + 1, bottom, DIVIDER_COLOR);
             if (this.selected != null || this.announcements) {
-                Sprites.draw(graphics, Sprites.HEADER, divider + 1, contentTop, right - divider - 1, CHAT_HEADER_HEIGHT);
+                Sprites.draw(graphics, Sprites.HEADER, divider + 1, contentTop, right - divider - 1,
+                        CHAT_HEADER_HEIGHT);
             }
         }
     }
@@ -464,7 +467,8 @@ public final class SocialScreen extends Screen {
             int columnWidth = (this.panelRight() - left) / 3;
             String[] titles = {"osmosis.friends.list", "osmosis.friends.requests", "osmosis.friends.blocked_list"};
             for (int i = 0; i < titles.length; i++) {
-                graphics.centeredText(this.font, Component.translatable(titles[i]), left + columnWidth * i + columnWidth / 2,
+                int centerX = left + columnWidth * i + columnWidth / 2;
+                graphics.centeredText(this.font, Component.translatable(titles[i]), centerX,
                         contentTop + 6, TEXT_COLOR);
             }
             return;

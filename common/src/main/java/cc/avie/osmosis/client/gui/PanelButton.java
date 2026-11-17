@@ -24,7 +24,22 @@ public final class PanelButton extends AbstractButton {
 
     private final @Nullable Identifier icon;
     private final Runnable onPress;
-    private boolean highlighted;
+    private Style style = Style.NORMAL;
+
+    /** The background of a button that is not disabled or hovered. */
+    public enum Style {
+        NORMAL(Sprites.BUTTON),
+        /** For the main action of a window and for toggles that are switched on. */
+        ACCENT(Sprites.BUTTON_ACCENT),
+        POSITIVE(Sprites.BUTTON_POSITIVE),
+        NEGATIVE(Sprites.BUTTON_NEGATIVE);
+
+        private final Identifier sprite;
+
+        Style(Identifier sprite) {
+            this.sprite = sprite;
+        }
+    }
 
     private PanelButton(int x, int y, int width, int height, Component message, @Nullable Identifier icon,
                         Runnable onPress) {
@@ -46,9 +61,9 @@ public final class PanelButton extends AbstractButton {
         return button;
     }
 
-    /** Shows the button in the accent color, for toggles that are switched on. */
-    public void setHighlighted(boolean highlighted) {
-        this.highlighted = highlighted;
+    public PanelButton setStyle(Style style) {
+        this.style = style;
+        return this;
     }
 
     @Override
@@ -58,8 +73,9 @@ public final class PanelButton extends AbstractButton {
 
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+        // Colored buttons keep their color on hover; only plain ones light up.
         Identifier background = !this.active ? Sprites.BUTTON_DISABLED
-                : this.highlighted ? Sprites.BUTTON_ACCENT
+                : this.style != Style.NORMAL ? this.style.sprite
                 : this.isHoveredOrFocused() ? Sprites.BUTTON_HOVERED : Sprites.BUTTON;
         Sprites.draw(graphics, background, this.getX(), this.getY(), this.getWidth(), this.getHeight());
         if (this.icon != null) {

@@ -30,6 +30,7 @@ public final class FriendList {
     private final Map<UUID, FriendProfile> blocked = new LinkedHashMap<>();
     private final Map<Long, GroupInfo> groups = new LinkedHashMap<>();
     private final Map<UUID, HostedWorld> hostedWorlds = new HashMap<>();
+    private final Map<UUID, List<FriendProfile>> worldMembers = new HashMap<>();
     private @Nullable UUID lastInviteHost;
     private final Set<UUID> online = new HashSet<>();
     private final Map<UUID, Long> lastSeen = new HashMap<>();
@@ -136,6 +137,18 @@ public final class FriendList {
      */
     public @Nullable HostedWorld hostedWorld(UUID host) {
         return this.hostedWorlds.get(host);
+    }
+
+    /**
+     * @return the players invited to one of our worlds, or {@code null} until the server answered
+     */
+    public @Nullable List<FriendProfile> worldMembers(UUID world) {
+        return this.worldMembers.get(world);
+    }
+
+    public void setWorldMembers(UUID world, List<FriendProfile> members) {
+        this.worldMembers.put(world, List.copyOf(members));
+        this.changed();
     }
 
     public Collection<HostedWorld> hostedWorlds() {

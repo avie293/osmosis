@@ -45,6 +45,8 @@ public final class WorldHost {
     private @Nullable String world;
     private @Nullable UUID worldId;
     private int lanPort;
+    /** Settings of a world being loaded to be hosted once it is ready. */
+    private @Nullable WorldSettings pendingSettings;
 
     public boolean isHosting() {
         return this.world != null;
@@ -56,6 +58,24 @@ public final class WorldHost {
 
     public boolean canHost() {
         return Minecraft.getInstance().getSingleplayerServer() != null;
+    }
+
+    /**
+     * @return the id of the world being hosted, or {@code null} when not hosting
+     */
+    public @Nullable UUID worldId() {
+        return this.worldId;
+    }
+
+    /**
+     * Opens a singleplayer world and hosts it once it has loaded.
+     */
+    public void hostAfterLoading(String levelId, WorldSettings settings, Runnable onCancel) {
+        this.pendingSettings = settings;
+        Minecraft.getInstance().createWorldOpenFlows().openWorld(levelId, () -> {
+            this.pendingSettings = null;
+            onCancel.run();
+        });
     }
 
     public void start() {
@@ -76,7 +96,7 @@ public final class WorldHost {
         if (OFFLINE_HOSTING) {
             server.setUsesAuthentication(false);
         }
-        this.worldId = worldId(server.getWorldPath(LevelResource.ROOT).resolve(WORLD_ID_FILE));
+        this.worldId = worldId(server.getWorldPath(LevelResource.ROOT));
         this.world = server.getWorldData().getLevelName();
         OsmosisClient.connection().startHosting(this.worldId, this.world);
     }
@@ -85,7 +105,8 @@ public final class WorldHost {
      * Reads the id stored in the world folder, or creates it. Invites are remembered per id, so they survive renaming
      * the world, and copies of a world share them.
      */
-    private static UUID worldId(Path file) {
+    public static UUID worldId(Path worldFolder) {
+        Path file = worldFolder.resolve(WORLD_ID_FILE);
         try {
             if (Files.exists(file)) {
                 return UUID.fromString(Files.readString(file, StandardCharsets.UTF_8).strip());
@@ -126,9 +147,16 @@ public final class WorldHost {
         }
     }
 
-    /** Ends hosting once the player left the world. */
+    /** Starts hosting a world once it finished loading, and ends hosting once the player left it. */
     public void tick() {
-        if (this.world != null && Minecraft.getInstance().getSingleplayerServer() == null) {
+        Minecraft minecraft = Minecraft.getInstance();
+        IntegratedServer server = minecraft.getSingleplayerServer();
+        if (this.pendingSettings != null && server != null && minecraft.player != null) {
+            this.pendingSettings.applyTo(server);
+            this.pendingSettings = null;
+            this.start();
+        }
+        if (this.world != null && server == null) {
             this.stop();
         }
     }

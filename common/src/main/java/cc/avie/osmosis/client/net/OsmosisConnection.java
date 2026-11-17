@@ -169,6 +169,24 @@ public final class OsmosisConnection {
         this.sendWithId(Packets.JOIN_WORLD, host);
     }
 
+    public void requestWorldMembers(UUID world) {
+        this.sendWithId(Packets.REQUEST_WORLD_MEMBERS, world);
+    }
+
+    public void addWorldMember(UUID world, UUID player) {
+        FriendlyByteBuf buf = Packets.create(Packets.ADD_WORLD_MEMBER);
+        buf.writeUUID(world);
+        buf.writeUUID(player);
+        this.send(buf);
+    }
+
+    public void removeWorldMember(UUID world, UUID player) {
+        FriendlyByteBuf buf = Packets.create(Packets.REMOVE_WORLD_MEMBER);
+        buf.writeUUID(world);
+        buf.writeUUID(player);
+        this.send(buf);
+    }
+
     /**
      * The relay's tunnel lives on the same host as the control connection, so the address that worked for that one is
      * used again, which avoids trying IPv4 and IPv6 a second time.
@@ -593,6 +611,11 @@ public final class OsmosisConnection {
                         announcements.add(new Announcement(buf.readLong(), buf.readUtf(Packets.MAX_ANNOUNCEMENT_LENGTH)));
                     }
                     connection.onMainThread(() -> friends.addAnnouncements(announcements));
+                }
+                case Packets.WORLD_MEMBERS -> {
+                    UUID world = buf.readUUID();
+                    List<FriendProfile> members = Packets.readProfiles(buf);
+                    connection.onMainThread(() -> friends.setWorldMembers(world, members));
                 }
                 default -> throw new DecoderException("Unknown Osmosis packet");
             }

@@ -12,7 +12,7 @@ import net.minecraft.network.FriendlyByteBuf;
  * documents the framing.
  */
 final class Packets {
-    static final int PROTOCOL_VERSION = 6;
+    static final int PROTOCOL_VERSION = 7;
     static final int MAX_NAME_LENGTH = 16;
     static final int MAX_GROUP_NAME_LENGTH = 24;
     static final int MAX_WORLD_NAME_LENGTH = 64;
@@ -49,6 +49,9 @@ final class Packets {
     static final int STOP_HOSTING = 24;
     static final int INVITE = 25;
     static final int JOIN_WORLD = 26;
+    static final int REQUEST_WORLD_MEMBERS = 27;
+    static final int ADD_WORLD_MEMBER = 28;
+    static final int REMOVE_WORLD_MEMBER = 29;
 
     static final int CHALLENGE = 0;
     static final int WELCOME = 1;
@@ -74,6 +77,7 @@ final class Packets {
     static final int JOIN_TICKET = 21;
     static final int GUEST_JOINING = 22;
     static final int ANNOUNCEMENTS = 23;
+    static final int WORLD_MEMBERS = 24;
 
     /** Indexed by the server's {@code DisconnectReason}. */
     private static final ConnectionStatus[] DISCONNECT_REASONS = {

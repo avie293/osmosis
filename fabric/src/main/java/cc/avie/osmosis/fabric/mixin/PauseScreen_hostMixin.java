@@ -2,6 +2,7 @@ package cc.avie.osmosis.fabric.mixin;
 
 import cc.avie.osmosis.client.OsmosisClient;
 import cc.avie.osmosis.client.gui.HostButton;
+import cc.avie.osmosis.client.gui.WorldScreen;
 import net.minecraft.client.gui.layouts.LayoutElement;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.PauseScreen;
@@ -26,7 +27,7 @@ abstract class PauseScreen_hostMixin extends Screen {
     private LayoutElement osmosis$addHostButton(LayoutElement element) {
         // Only a singleplayer world can be hosted.
         if (element instanceof LinearLayout iconRow && OsmosisClient.host().canHost()) {
-            iconRow.addChild(new HostButton(this));
+            iconRow.addChild(new HostButton(() -> WorldScreen.forCurrentWorld(this)));
         }
         return element;
     }

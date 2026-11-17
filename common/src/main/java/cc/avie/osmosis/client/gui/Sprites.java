@@ -19,6 +19,8 @@ public final class Sprites {
     public static final Identifier BUTTON_HOVERED = sprite("button/hovered");
     public static final Identifier BUTTON_DISABLED = sprite("button/disabled");
     public static final Identifier BUTTON_ACCENT = sprite("button/accent");
+    public static final Identifier BUTTON_POSITIVE = sprite("button/positive");
+    public static final Identifier BUTTON_NEGATIVE = sprite("button/negative");
     public static final Identifier BUBBLE_OUTGOING = sprite("bubble/outgoing");
     public static final Identifier BUBBLE_INCOMING = sprite("bubble/incoming");
     public static final Identifier INVITE = sprite("bubble/invite");
